@@ -30,7 +30,7 @@ impl ParseError {
     
     pub fn env_not_closed(closing_tag : &TokenKind, position : &ParserPosition) -> Self {
         
-        let closing_tag = match closing_tag {
+        let closing_tag_desc = match closing_tag {
             // TODO create closable variant for TokenKind
             TokenKind::EnvClose(s) => String::from(s),
             TokenKind::EndOfFile => String::from("EOF"),
@@ -42,7 +42,7 @@ impl ParseError {
         ParseError {
             kind: ParseErrorKind::EnvNotClosed,
             position: position.clone(),
-            message: format!("Environment never closed. Expected {closing_tag}."),
+            message: format!("Environment never closed. Expected {closing_tag_desc}."),
         }
     }
 

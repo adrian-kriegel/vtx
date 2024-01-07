@@ -116,8 +116,8 @@ impl TokenKind {
     fn new_env_close(header_kind : &EnvNodeHeaderKind) -> Self {
 
         let name = match &header_kind {
-            EnvNodeHeaderKind::Eq => "</Eq>",
-            EnvNodeHeaderKind::Code => "</Code>",
+            EnvNodeHeaderKind::Eq => "Eq",
+            EnvNodeHeaderKind::Code => "Code",
             EnvNodeHeaderKind::Other(name) => &name
         };
 
@@ -238,7 +238,7 @@ impl<'a> Parser<'a> {
                 (whitespace_len > 0).then(|| &self.remaining[..whitespace_len])
             },
 
-            TokenKind::EndOfFile => (self.remaining.len() == 0)
+            TokenKind::EndOfFile => (self.remaining.len() == 1)
                 .then(|| ""),
 
             TokenKind::Dollar => (bytes[0] == b'$' )
@@ -589,7 +589,7 @@ impl<'a> Parser<'a> {
     pub fn parse_env_from_name(&mut self) -> Result<EnvNode, ParseError> {
 
         let (header, stop_token) = self.parse_env_header_from_name()?;
-
+        
         let body_position = self.position.clone();
 
         Ok(match stop_token {
@@ -601,10 +601,10 @@ impl<'a> Parser<'a> {
                     children: if header.meta_attrs.raw {
                         
                         let closing_tag = TokenKind::new_env_close(&header.kind);
-
+                        
                         let (text, stop_token) = self.seek_to_and_capture(
                             TokenKind::Text,
-                            &[],
+                            &[closing_tag.clone()],
                         );
 
                         stop_token.ok_or(ParseError::env_not_closed(&closing_tag, &body_position))?;
@@ -810,4 +810,51 @@ mod tests {
         }
             
     }
+
+    #[test]
+    pub fn parse_document() {
+
+        let cases = vec![
+            (
+                r#"
+                This is what a document may look like.
+
+                <Eq label="eq_some_label">
+                    e = mc^2
+                </Eq>
+
+                \<Eq> and \<Code> environents are parsed as "raw". This means they cannot contain other environments.
+                
+                <Code>
+                    Code can be vtx code or anything else and will not throw syntax errors.
+                    The parser does not care about bad syntax in ther: <Eq> <Figure> $ /**
+                </Code>
+                
+                <Image
+                    src="https://example.com"
+                />
+                <Chapter>
+                    <Section>
+                        Equation <ref eq_some_label/> may be included in the test using the \$ sign like this: $e=mc^2$. 
+                    </Section>
+                </Chapter>
+
+                /** Comments are nested: /** Because you may want to comment out things that contain comments. */ */
+
+                "#,
+                ()
+            )
+        ];
+
+        for (src, _) in cases {
+
+            // TODO check the resulting document tree
+            let (document, tokens) = parse(src).unwrap();
+
+            dbg!(&document);
+        }
+
+    } 
+
+
 }
