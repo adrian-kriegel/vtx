@@ -1,4 +1,6 @@
 
+use core::fmt;
+
 use crate::parse::{ParserPosition, TokenKind};
 
 #[derive(Debug)]
@@ -9,6 +11,12 @@ pub enum ParseErrorKind {
     QuoteNotClosed,
     Unknown,
     ToDo
+}
+
+impl fmt::Display for ParseErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
 }
 
 #[derive(Debug)]
@@ -70,4 +78,56 @@ impl ParseError {
         }
     }
 
+    pub fn display(&self, src: &str) -> String {
+
+        let line = src
+            .lines()
+            .enumerate()
+            .nth(*self.position.line());
+
+        if let Some((_, line)) = line {
+
+            let line_indicator = format!("{} | ", *self.position.line() + 1);
+
+            let space = *self.position.col() + line_indicator.len();
+
+            let spacer = std::iter::repeat(" ")
+                .take(space)
+                .collect::<String>();
+
+            let desc = self.kind.to_string();
+
+            format!("ParseError ({desc}):\n\n{line_indicator}{line}\n{spacer}↑\n{spacer}{}", self.message)
+
+        } else {
+            "TODO".to_string()
+        }
+
+    }
+
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_display() {
+
+        let src = "line0\nline1\nline2";
+
+        let display = ParseError {
+            position: ParserPosition::new(1, 2, 0),
+            kind: ParseErrorKind::Unknown,
+            message: "Some Message.".to_string(),
+        }.display(src);
+
+        assert_eq!(
+            display,
+            "ParseError (Unknown):\n\n2 | line1\n      ↑\n      Some Message."
+        );
+
+    }
 }

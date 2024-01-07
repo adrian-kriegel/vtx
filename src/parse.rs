@@ -85,10 +85,6 @@ impl ParserPosition {
         Self { line, col, byte_idx: abs }
     }
 
-    pub fn col(col : usize) -> Self {
-        Self { line: 0, col, byte_idx: col }
-    }
-
     //
     // Advances the position by the size of the char.
     // Returns bytes advanved.
@@ -108,6 +104,11 @@ impl ParserPosition {
 
         delta_bytes
     }
+
+    pub fn line(&self) -> &usize { &self.line }
+    pub fn col(&self) -> &usize { &self.col }
+    pub fn bytes(&self) -> &usize { &self.line }
+
 }
 
 impl TokenKind {
@@ -695,7 +696,7 @@ mod tests {
                     ),
                     Some(
                         Token {
-                            position: ParserPosition::col(18),
+                            position: ParserPosition::new(0, 18, 18),
                             value: "</Document>",
                             kind: end_document.clone()
                         }
@@ -726,8 +727,6 @@ mod tests {
 
             let (captured, end) = parser.seek_to_and_capture(captured_kind, &end_kinds);
 
-            dbg!(&parser.parsed_tokens.tokens);
-
             let lines = src.lines();
             
             assert_eq!(parser.position.byte_idx, src.len());
@@ -752,7 +751,13 @@ mod tests {
     #[test]
     fn parse_env_header_attrs() {
 
+        // attrs cannot start with whitespace but may be emtpy
         let cases = vec![
+            (
+                "/>",
+                EnvNodeAttrs::new(),
+                TokenKind::EnvSelfClose,
+            ),
             (
                 "label=\"foo\"/>",
                 EnvNodeAttrs::from([
@@ -776,13 +781,21 @@ mod tests {
                 TokenKind::RightAngle,
             ),
             (
-                "label=\"foo\"\nbar=\"1\"\n/>",
+                "label=\"foo\" bar=\"1\">",
+                EnvNodeAttrs::from([
+                    ("label".to_string(), "foo".to_string()),
+                    ("bar".to_string(), "1".to_string()),
+                ]),
+                TokenKind::RightAngle,
+            ),
+            (
+                "label=\"foo\"\n\tbar=\"1\"\n />",
                 EnvNodeAttrs::from([
                     ("label".to_string(), "foo".to_string()),
                     ("bar".to_string(), "1".to_string()),
                 ]),
                 TokenKind::EnvSelfClose,
-            )
+            ),
         ];
 
         for (src, expected_attrs, expected_end) in cases {
@@ -794,8 +807,6 @@ mod tests {
             assert_eq!(end_token, expected_end);
             
             assert_eq!(attrs, expected_attrs);
-
-            dbg!(attrs);
         }
             
     }
