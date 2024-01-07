@@ -4,9 +4,26 @@ use std::collections::HashMap;
 use crate::parse::{ParserPosition, Token};
 
 #[derive(Debug)]
+pub enum EnvNodeHeaderKind {
+    Eq,
+    Code,
+    Other(String)
+}
+
+#[derive(Debug)]
+pub struct EnvNodeMetaAttrs {
+    /**  */
+    pub raw : bool
+}
+
+pub type EnvNodeAttrs = HashMap<String, String>;
+
+#[derive(Debug)]
 pub struct EnvNodeHeader {
-    pub name: String, 
-    pub attrs: HashMap<String, String>,
+    pub kind: EnvNodeHeaderKind,
+    pub attrs: EnvNodeAttrs,
+    /** Attributes about the node, relevant at parse time. */
+    pub meta_attrs: EnvNodeMetaAttrs,
 }
 
 #[derive(Debug)]
@@ -51,13 +68,44 @@ impl EnvNode {
     }
 }
 
+impl EnvNodeMetaAttrs {
+
+    pub fn new(header_kind : &EnvNodeHeaderKind) -> Self {
+        EnvNodeMetaAttrs {
+            raw: match header_kind {
+                EnvNodeHeaderKind::Code | EnvNodeHeaderKind::Eq => true,
+                _ => false
+            }
+        }
+    }
+
+}
+
+impl EnvNodeHeaderKind {
+
+    pub fn new(name : &str) -> Self {
+        match name {
+            "Eq" => Self::Eq,
+            "Code" => Self::Code, 
+            _ => Self::Other(String::from(name)),
+        }
+    }
+
+}
+
 impl EnvNodeHeader {
 
     /** Create new empty header with the specified nae */
-    pub fn new_empty(name : String) -> Self {
-        Self { name, attrs: HashMap::new() }
-    }
+    pub fn new_empty(parsed_name : &str) -> Self {
 
+        let kind = EnvNodeHeaderKind::new(parsed_name);
+
+        Self { 
+            meta_attrs: EnvNodeMetaAttrs::new(&kind),
+            kind, 
+            attrs: HashMap::new(),
+        }
+    }
 }
 
 impl Node {

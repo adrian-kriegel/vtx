@@ -5,6 +5,8 @@ use crate::parse::{ParserPosition, TokenKind};
 pub enum ParseErrorKind {
     EnvHeaderNotClosed,
     EnvNotClosed,
+    MissingAttrValue,
+    QuoteNotClosed,
     Unknown,
     ToDo
 }
@@ -26,13 +28,13 @@ impl ParseError {
             TokenKind::EndOfFile => String::from("EOF"),
             TokenKind::Dollar => String::from("$"),
             TokenKind::CommentClose => String::from("**/"),
-            _ => unreachable!("Consturctor env_not_closed can only be used with TokenKind::EnvNotClosed.")
+            _ => unreachable!("Consturctor env_not_closed can only be used with TokenKind::EnvNotClosed."),
         };
 
         ParseError {
             kind: ParseErrorKind::EnvNotClosed,
             position: position.clone(),
-            message: format!("Environment never closed. Expected {closing_tag}.")
+            message: format!("Environment never closed. Expected {closing_tag}."),
         }
     }
 
@@ -40,7 +42,7 @@ impl ParseError {
         ParseError {
             kind: ParseErrorKind::EnvHeaderNotClosed,
             position: position.clone(),
-            message: format!("Expected '>', '/>', or attribute list.")
+            message: format!("Expected '>', '/>', or attribute list."),
         }
     }
 
@@ -48,7 +50,23 @@ impl ParseError {
         ParseError{
             kind: ParseErrorKind::ToDo,
             position: position.clone(),
-            message: String::from(message)
+            message: String::from(message),
+        }
+    }
+
+    pub fn missing_attr_value(position : &ParserPosition) -> Self{
+        ParseError{
+            kind: ParseErrorKind::MissingAttrValue,
+            position: position.clone(),
+            message: String::from("Expected attribute value after '='."),
+        }
+    }
+
+    pub fn quote_not_closed(position : &ParserPosition) -> Self{
+        ParseError{
+            kind: ParseErrorKind::QuoteNotClosed,
+            position: position.clone(),
+            message: String::from("Quote '\"' not closed."),
         }
     }
 
