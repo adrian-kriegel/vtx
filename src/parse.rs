@@ -356,7 +356,15 @@ impl<'a> Parser<'a> {
             self.next_unescaped_char();
         }
 
-        None
+        // TODO: this is a shim because the loop above stops before EndOfFile could possibly match
+        tokens.contains(&TokenKind::EndOfFile).then(
+            || Token {
+                value: "",
+                kind: TokenKind::EndOfFile,
+                position: self.position.clone()
+            }
+        )
+
     }
 
     /// 
@@ -839,9 +847,7 @@ mod tests {
                     </Section>
                 </Chapter>
 
-                /** Comments are nested: /** Because you may want to comment out things that contain comments. */ */
-
-                "#,
+                /** Comments are nested: /** Because you may want to comment out things that contain comments. */ */"#,
                 ()
             )
         ];
