@@ -7,7 +7,7 @@ use crate::parse_error::*;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd)]
 pub struct ParserPosition {
-    // index of the current line in the file 
+    // index of the current line in the module 
     line: usize,
     // index of the current character in the current line
     col: usize,
@@ -54,7 +54,7 @@ pub enum TokenKind{
     CommentClose,
     Whitespace,
     EndOfLine,
-    EndOfFile,
+    EndOfModule,
     Dollar,
     Equals,
     Quote,
@@ -115,14 +115,7 @@ impl ParserPosition {
 impl TokenKind {
 
     fn new_env_close(header_kind : &EnvNodeHeaderKind) -> Self {
-
-        let name = match &header_kind {
-            EnvNodeHeaderKind::Eq => "Eq",
-            EnvNodeHeaderKind::Code => "Code",
-            EnvNodeHeaderKind::Other(name) => &name
-        };
-
-        TokenKind::EnvClose(format!("</{}>", name))
+        TokenKind::EnvClose(header_kind.get_closing_string())
     }
 }
 
@@ -239,7 +232,7 @@ impl<'a> Parser<'a> {
                 (whitespace_len > 0).then(|| &self.remaining[..whitespace_len])
             },
 
-            TokenKind::EndOfFile => (self.remaining.len() == 1)
+            TokenKind::EndOfModule => (self.remaining.len() == 1)
                 .then(|| ""),
 
             TokenKind::Dollar => (bytes[0] == b'$' )
@@ -358,11 +351,11 @@ impl<'a> Parser<'a> {
             self.next_unescaped_char();
         }
 
-        // TODO: this is a shim because the loop above stops before EndOfFile could possibly match
-        tokens.contains(&TokenKind::EndOfFile).then(
+        // TODO: this is a shim because the loop above stops before EndOfModule could possibly match
+        tokens.contains(&TokenKind::EndOfModule).then(
             || Token {
                 value: "",
-                kind: TokenKind::EndOfFile,
+                kind: TokenKind::EndOfModule,
                 position: self.position.clone()
             }
         )
@@ -631,30 +624,29 @@ impl<'a> Parser<'a> {
 
             TokenKind::EnvSelfClose => EnvNode::new_self_closing(header),
 
-            TokenKind::RightAngle => EnvNode::Open(
-                EnvNodeOpen{ 
-                    children: if header.meta_attrs.raw {
+            TokenKind::RightAngle => {
+                let children = if header.meta_attrs.raw {
                         
-                        let closing_tag = TokenKind::new_env_close(&header.kind);
-                        
-                        let (text, stop_token) = self.seek_to_and_capture(
-                            TokenKind::Text,
-                            &[closing_tag.clone()],
-                        );
+                    let closing_tag = TokenKind::new_env_close(&header.kind);
+                    
+                    let (text, stop_token) = self.seek_to_and_capture(
+                        TokenKind::Text,
+                        &[closing_tag.clone()],
+                    );
 
-                        stop_token.ok_or(ParseError::env_not_closed(&closing_tag, &body_position))?;
+                    stop_token.ok_or(ParseError::env_not_closed(&closing_tag, &body_position))?;
 
-                        if let Some(text) = text {
-                            vec![Node::new_text(self.parsed_tokens.get(text))]
-                        } else {
-                            vec![]
-                        }
+                    if let Some(text) = text {
+                        vec![Node::new_text(self.parsed_tokens.get(text))]
                     } else {
-                        self.parse_children(TokenKind::new_env_close(&header.kind))?
-                    },
-                    header,
-                }
-            ),
+                        vec![]
+                    }
+                } else {
+                    self.parse_children(TokenKind::new_env_close(&header.kind))?
+                };
+
+                EnvNode::new_open(header, children)
+            },
 
             // kind can only be one of the variants passed to seek_to_and_capture
             _ => unreachable!()
@@ -669,15 +661,11 @@ impl<'a> Parser<'a> {
     fn parse_document(&mut self) -> Result<Node, ParseError> {
         
         let children = self.parse_children(
-            TokenKind::EndOfFile
+            TokenKind::EndOfModule
         )?;
 
-        let header = EnvNodeHeader::new_empty("File");
-
         Ok(Node {
-            kind: NodeKind::Env(
-                EnvNode::Open(EnvNodeOpen{ header, children })
-            ),
+            kind: NodeKind::Env(EnvNode::new_module(children)),
             position: ParserPosition::zero()
         })
     }
@@ -886,9 +874,9 @@ mod tests {
         for (src, _) in cases {
 
             // TODO check the resulting document tree
-            let (document, _tokens) = parse(src).unwrap();
+            let (_document, _tokens) = parse(src).unwrap();
 
-            dbg!(&document);
+            // dbg!(&document);
         }
 
     } 

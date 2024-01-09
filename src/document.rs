@@ -3,10 +3,12 @@ use std::collections::HashMap;
 
 use crate::parse::{ParserPosition, Token};
 
+
 #[derive(Debug)]
 pub enum EnvNodeHeaderKind {
     Eq,
     Code,
+    Module,
     Other(String)
 }
 
@@ -27,20 +29,15 @@ pub struct EnvNodeHeader {
 }
 
 #[derive(Debug)]
-pub struct EnvNodeOpen {
-    pub header: EnvNodeHeader,
-    pub children: Vec<Node>,
+pub enum EnvNodeKind {
+    Open(Vec<Node>),
+    SelfClosing,
 }
 
 #[derive(Debug)]
-pub struct EnvNodeSelfClosing {
+pub struct EnvNode {
+    pub kind: EnvNodeKind,
     pub header: EnvNodeHeader,
-}
-
-#[derive(Debug)]
-pub enum EnvNode {
-    Open(EnvNodeOpen),
-    SelfClosing(EnvNodeSelfClosing),
 }
 
 #[derive(Debug)]
@@ -48,6 +45,7 @@ pub enum LeafNode {
     InlineEquation(String),
     Text(String),
     Comment(String),
+    RawBytes(Vec<u8>)
 }
 
 #[derive(Debug)]
@@ -62,12 +60,61 @@ pub struct Node {
     pub position: ParserPosition,
 }
 
+
+#[derive(Debug)]
+pub enum EmitError<'a> {
+    NodeNotTransformed(&'a Node)
+}
+
+pub trait CollectBytes {
+
+    fn collect_bytes<F>(&self, f : &mut F) 
+    -> Result<(), EmitError> 
+    where F : FnMut(&[u8]);
+
+}
+
 impl EnvNode {
 
     /** Create new self closing tag. */
     pub fn new_self_closing(header : EnvNodeHeader) -> Self {
+        Self { kind: EnvNodeKind::SelfClosing, header }
+    }
 
-        Self::SelfClosing(EnvNodeSelfClosing{ header })
+    /** Create new open tag. */
+    pub fn new_open(header : EnvNodeHeader, children: Vec<Node>) -> Self {
+        Self { kind: EnvNodeKind::Open(children), header }
+    }
+
+    /** Create new module environment. */
+    pub fn new_module(children: Vec<Node>) -> Self {
+        Self { 
+            kind: EnvNodeKind::Open(children), 
+            header: EnvNodeHeader {
+                kind: EnvNodeHeaderKind::Module,
+                attrs: EnvNodeAttrs::new(),
+                meta_attrs: EnvNodeMetaAttrs { raw: false },
+            }
+        }
+    }
+}
+
+impl CollectBytes for EnvNode {
+
+    fn collect_bytes<F>(&self, f : &mut F) -> Result<(), EmitError>
+    where F : FnMut(&[u8]) {
+
+        self.header.collect_bytes(f)?;
+
+        if let EnvNodeKind::Open(children) = &self.kind {
+            for child in children {
+                child.collect_bytes::<F>(f)?;
+            }
+        }
+
+        f(self.header.kind.get_closing_string().as_bytes());
+
+        Ok(())
     }
 }
 
@@ -94,6 +141,22 @@ impl EnvNodeHeaderKind {
         }
     }
 
+    pub fn get_name(&self) -> &str {
+        match self {
+            EnvNodeHeaderKind::Eq => "Eq",
+            EnvNodeHeaderKind::Code => "Code",
+            EnvNodeHeaderKind::Module => "",
+            EnvNodeHeaderKind::Other(name) => &name
+        }
+    }
+
+    pub fn get_closing_string(&self) -> String {
+        match self {
+            EnvNodeHeaderKind::Module => "".to_string(),
+            _ => format!("</{}>", self.get_name()),
+        }
+    }
+
 }
 
 impl EnvNodeHeader {
@@ -111,6 +174,25 @@ impl EnvNodeHeader {
     }
 }
 
+impl CollectBytes for EnvNodeHeader {
+
+    fn collect_bytes<F>(&self, f : &mut F) 
+    -> Result<(), EmitError> 
+    where F : FnMut(&[u8]) {
+        
+        match self.kind {
+            EnvNodeHeaderKind::Module => {},
+            _ => {
+                f(&[b'<']);
+                f(self.kind.get_name().as_bytes());
+                f(&[b'>']);
+            }
+        }
+        
+        Ok(())
+    }
+}
+
 impl Node {
 
     pub fn new_text(token: &Token) -> Self {
@@ -119,5 +201,26 @@ impl Node {
             position: token.position.clone()
         }
     }
+}
 
+impl CollectBytes for Node {
+
+    fn collect_bytes<F>(&self, f : &mut F) -> Result<(), EmitError>
+    where F : FnMut(&[u8]) {
+
+        match &self.kind {
+            NodeKind::Leaf(LeafNode::RawBytes(bytes)) => f(bytes),
+
+            NodeKind::Leaf(
+                LeafNode::Text(text) | 
+                LeafNode::InlineEquation(text)
+            ) => f(text.as_bytes()),
+
+            NodeKind::Env(env_node) => env_node.collect_bytes(f)?,
+
+            _ => Err(EmitError::NodeNotTransformed(self))?,
+        }
+
+        Ok(())
+    }
 }

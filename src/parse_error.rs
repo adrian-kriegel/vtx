@@ -33,7 +33,7 @@ impl ParseError {
         let closing_tag_desc = match closing_tag {
             // TODO create closable variant for TokenKind
             TokenKind::EnvClose(s) => String::from(s),
-            TokenKind::EndOfFile => String::from("EOF"),
+            TokenKind::EndOfModule => String::from("EOF"),
             TokenKind::Dollar => String::from("$"),
             TokenKind::CommentClose => String::from("**/"),
             _ => unreachable!("Consturctor env_not_closed can only be used with TokenKind::EnvNotClosed."),
