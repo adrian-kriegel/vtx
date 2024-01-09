@@ -61,6 +61,7 @@ pub enum TokenKind{
     // TODO: these are non-matchable tokens that are only parsed when capturing
     //       separate matchable from non-matchable tokens
     Text,
+    CommentText,
     Math,
     EnvName,
     AttrName,
@@ -276,6 +277,7 @@ impl<'a> Parser<'a> {
             TokenKind::Math | 
             TokenKind::EnvName | 
             TokenKind::AttrName | 
+            TokenKind::CommentText |
             TokenKind::StringLiteral => unreachable!(
                 "Cannot use non-matchable token for matching."
             ),
@@ -367,6 +369,29 @@ impl<'a> Parser<'a> {
 
     }
 
+    pub fn parse_comment(&mut self) -> Result<&'a str, ParseError> {
+
+        // TODO: allow nested comments
+
+        let position = self.position.clone();
+
+        let (text, end_token) = self.seek_to_and_capture(
+            TokenKind::CommentText,
+            &[TokenKind::CommentClose]
+        );
+
+        end_token.ok_or(
+            ParseError::env_not_closed(
+                &TokenKind::CommentClose, 
+                &position
+            )
+        )?;
+
+        Ok(text.map(
+            |t| self.parsed_tokens.get(t).value
+        ).unwrap_or(""))
+    }
+
     /// 
     /// Parse children of env node terminated by closing_tag.
     /// 
@@ -423,7 +448,9 @@ impl<'a> Parser<'a> {
                     };
 
                     dollar.map(
-                        |_| NodeKind::InlineEquation(String::from(math))
+                        |_| NodeKind::Leaf(
+                            LeafNode::InlineEquation(String::from(math))
+                        )
                     ).ok_or(
                         ParseError::env_not_closed(
                             &TokenKind::Dollar,
@@ -432,8 +459,8 @@ impl<'a> Parser<'a> {
                     )?
                 },
 
-                TokenKind::CommentOpen => NodeKind::Comment(
-                    self.parse_children(TokenKind::CommentClose)?
+                TokenKind::CommentOpen => NodeKind::Leaf(
+                    LeafNode::Comment(self.parse_comment()?.to_string())
                 ),
 
                 _ => unreachable!(),
@@ -645,8 +672,12 @@ impl<'a> Parser<'a> {
             TokenKind::EndOfFile
         )?;
 
+        let header = EnvNodeHeader::new_empty("File");
+
         Ok(Node {
-            kind: NodeKind::Root(children),
+            kind: NodeKind::Env(
+                EnvNode::Open(EnvNodeOpen{ header, children })
+            ),
             position: ParserPosition::zero()
         })
     }
@@ -847,7 +878,7 @@ mod tests {
                     </Section>
                 </Chapter>
 
-                /** Comments are nested: /** Because you may want to comment out things that contain comments. */ */"#,
+                /** A comment */"#,
                 ()
             )
         ];
@@ -855,7 +886,7 @@ mod tests {
         for (src, _) in cases {
 
             // TODO check the resulting document tree
-            let (document, tokens) = parse(src).unwrap();
+            let (document, _tokens) = parse(src).unwrap();
 
             dbg!(&document);
         }

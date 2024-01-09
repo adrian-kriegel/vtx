@@ -39,18 +39,21 @@ pub struct EnvNodeSelfClosing {
 
 #[derive(Debug)]
 pub enum EnvNode {
-    Root(EnvNodeOpen),
     Open(EnvNodeOpen),
     SelfClosing(EnvNodeSelfClosing),
 }
 
 #[derive(Debug)]
-pub enum NodeKind{
+pub enum LeafNode {
     InlineEquation(String),
     Text(String),
+    Comment(String),
+}
+
+#[derive(Debug)]
+pub enum NodeKind{
+    Leaf(LeafNode),
     Env(EnvNode),
-    Comment(Vec<Node>),
-    Root(Vec<Node>),
 }
 
 #[derive(Debug)]
@@ -112,7 +115,7 @@ impl Node {
 
     pub fn new_text(token: &Token) -> Self {
         Node {
-            kind: NodeKind::Text(String::from(token.value)),
+            kind: NodeKind::Leaf(LeafNode::Text(String::from(token.value))),
             position: token.position.clone()
         }
     }
