@@ -20,9 +20,9 @@ pub type TransformerId = usize;
 
 pub trait Transformer {
     
-    fn transform(&self, node : Node) -> TransformResult;
+    fn transform(&mut self, node : Node) -> TransformResult;
     
-    fn transform_once(&self, id : TransformerId, mut node : Node) -> TransformResult {
+    fn transform_once(&mut self, id : TransformerId, mut node : Node) -> TransformResult {
 
         if node.visited_by.contains(&id) {
 
@@ -76,12 +76,12 @@ impl Action {
 
 fn transform_node_single_pass(
     node : Node,
-    transformers : &Vec<Box<dyn Transformer>>
+    transformers : &mut Vec<Box<dyn Transformer>>
 ) -> TransformResult {
 
     let mut transform_action = Action::Keep(node);
 
-    for (i, transformer) in transformers.iter().enumerate() {
+    for (i, transformer) in transformers.into_iter().enumerate() {
         match transform_action {
             Action::Keep(node) | Action::Replace(node) => {
                 transform_action = transformer.transform_once(i, node)?;
@@ -145,7 +145,7 @@ fn transform_node_single_pass(
 
 pub fn transform(
     node : Node,
-    transformers : &Vec<Box<dyn Transformer>>,
+    transformers : &mut Vec<Box<dyn Transformer>>,
     max_passes : u32
 ) -> Result<Node, TransformError> {
 
@@ -173,7 +173,7 @@ pub struct DefaultTransformer;
 // default transformer that is always active
 impl Transformer for DefaultTransformer {
 
-    fn transform(&self, node : Node) -> TransformResult {
+    fn transform(&mut self, node : Node) -> TransformResult {
 
         match &node.kind {
             NodeKind::Leaf(LeafNode::Comment(_)) => Ok(Action::Remove),
@@ -189,7 +189,7 @@ struct EquationTransformer;
 // puts any equations into a <pre> tag
 impl Transformer for EquationTransformer {
 
-    fn transform(&self, node : Node) -> TransformResult {
+    fn transform(&mut self, node : Node) -> TransformResult {
 
         match &node.kind {
             // match inline equations
@@ -260,7 +260,7 @@ mod test {
 
         let document = transform(
             document, 
-            &vec![Box::new(DefaultTransformer), Box::new(EquationTransformer)], 
+            &mut vec![Box::new(DefaultTransformer), Box::new(EquationTransformer)], 
             3
         ).unwrap();
 

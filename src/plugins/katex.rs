@@ -60,7 +60,7 @@ impl KatexPlugin {
 
 impl Transformer for KatexPlugin {
 
-    fn transform(&self, node : Node) 
+    fn transform(&mut self, node : Node) 
     -> crate::transform::TransformResult {
 
         let action = match &node.kind {

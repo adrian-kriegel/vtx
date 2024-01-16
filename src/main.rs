@@ -22,7 +22,7 @@ fn main() {
 
             let transformed = transform(
                 document,
-                &vec![
+                &mut vec![
                     Box::new(HTMLPlugin), 
                     Box::new(KatexPlugin::hosted())
                 ],

@@ -62,7 +62,7 @@ pub fn style_sheet(href : &str, position : &NodePosition) -> Node {
 
 impl crate::transform::Transformer for HTMLPlugin {
 
-    fn transform(&self, node : Node) 
+    fn transform(&mut self, node : Node) 
     -> crate::transform::TransformResult {
         
         match node {
@@ -142,7 +142,7 @@ mod test {
 
         let doc = transform::transform(
             doc, 
-            &vec![Box::new(HTMLPlugin)],
+            &mut vec![Box::new(HTMLPlugin)],
             1
         ).unwrap();
 

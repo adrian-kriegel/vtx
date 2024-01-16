@@ -7,7 +7,7 @@ use crate::parse::*;
 
 pub fn transpile<'a>(
     src : &'a str,
-    transformers : &Vec<Box<dyn Transformer>>,
+    transformers : &mut Vec<Box<dyn Transformer>>,
     max_passes : u32
 ) -> Result<Node, Error<'a>> {
 
