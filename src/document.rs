@@ -1,7 +1,7 @@
 
-use std::collections::HashMap;
+use std::{collections::{HashMap, HashSet}, sync::atomic::{AtomicUsize, Ordering}};
 
-use crate::parse::{ParserPosition, Token};
+use crate::{parse::{ParserPosition, Token}, transform::TransformerId};
 
 
 #[derive(Debug)]
@@ -14,11 +14,11 @@ pub enum EnvNodeHeaderKind {
 
 #[derive(Debug)]
 pub struct EnvNodeMetaAttrs {
-    /**  */
+    /** Indicates that anything inside this environment will be parsed as text. */
     pub raw : bool
 }
 
-pub type EnvNodeAttrs = HashMap<String, String>;
+pub type EnvNodeAttrs = HashMap<String, Option<String>>;
 
 #[derive(Debug)]
 pub struct EnvNodeHeader {
@@ -54,10 +54,20 @@ pub enum NodeKind{
     Env(EnvNode),
 }
 
+pub type NodeId = usize;
+
+#[derive(Debug, Clone)]
+pub enum NodePosition {
+    Source(ParserPosition),
+    Inserted
+}
+
 #[derive(Debug)]
 pub struct Node {
+    pub id : NodeId,
+    pub visited_by : HashSet<TransformerId>,
     pub kind: NodeKind,
-    pub position: ParserPosition,
+    pub position: NodePosition,
 }
 
 
@@ -118,6 +128,31 @@ impl CollectBytes for EnvNode {
     }
 }
 
+impl CollectBytes for EnvNodeAttrs {
+
+    fn collect_bytes<F>(&self, f : &mut F) -> Result<(), EmitError>
+    where F : FnMut(&[u8]) {
+
+        for (key, value) in self {
+
+            f(key.as_bytes());
+
+            if let Some(value) = value  {
+                f(&[b'=', b'"']);
+                f(value.as_bytes());
+                f(&[b'"', b' ']);
+            } else {
+                f(&[b' ']);
+            }
+
+        }
+
+        Ok(())
+
+    }
+
+}
+
 impl EnvNodeMetaAttrs {
 
     pub fn new(header_kind : &EnvNodeHeaderKind) -> Self {
@@ -162,15 +197,20 @@ impl EnvNodeHeaderKind {
 impl EnvNodeHeader {
 
     /** Create new empty header with the specified nae */
-    pub fn new_empty(parsed_name : &str) -> Self {
+    pub fn new(parsed_name : &str, attrs : EnvNodeAttrs) -> Self {
 
         let kind = EnvNodeHeaderKind::new(parsed_name);
 
         Self { 
             meta_attrs: EnvNodeMetaAttrs::new(&kind),
             kind, 
-            attrs: HashMap::new(),
+            attrs,
         }
+    }
+
+    pub fn new_empty(parsed_name : &str) -> Self {
+
+        Self::new(parsed_name, EnvNodeAttrs::new())
     }
 }
 
@@ -185,6 +225,15 @@ impl CollectBytes for EnvNodeHeader {
             _ => {
                 f(&[b'<']);
                 f(self.kind.get_name().as_bytes());
+
+                if !self.attrs.is_empty() {
+
+                    f(&[b' ']);
+
+                    self.attrs.collect_bytes(f)?;
+
+                }
+
                 f(&[b'>']);
             }
         }
@@ -193,13 +242,30 @@ impl CollectBytes for EnvNodeHeader {
     }
 }
 
+static NODE_ID_COUNTER : AtomicUsize = AtomicUsize::new(0);
+
 impl Node {
 
-    pub fn new_text(token: &Token) -> Self {
+    pub fn new(kind : NodeKind, position : NodePosition) -> Node {
         Node {
-            kind: NodeKind::Leaf(LeafNode::Text(String::from(token.value))),
-            position: token.position.clone()
+            id: Self::generate_id(),
+            kind,
+            position,
+            visited_by: HashSet::new()
         }
+    }
+
+    pub fn new_text(token: &Token) -> Self {
+        Self::new(
+            NodeKind::Leaf(LeafNode::Text(String::from(token.value))),
+            NodePosition::Source(token.position.clone())
+        )
+    }
+
+    pub fn generate_id() -> NodeId {
+        
+        NODE_ID_COUNTER.fetch_add(1, Ordering::Relaxed)
+
     }
 }
 
@@ -223,4 +289,5 @@ impl CollectBytes for Node {
 
         Ok(())
     }
+
 }

@@ -16,8 +16,62 @@ pub enum Action {
 
 pub type TransformResult = Result<Action, TransformError>;
 
+pub type TransformerId = usize;
+
 pub trait Transformer {
-    fn transform_node(&self, node : Node) -> TransformResult;
+    
+    fn transform(&self, node : Node) -> TransformResult;
+    
+    fn transform_once(&self, id : TransformerId, mut node : Node) -> TransformResult {
+
+        if node.visited_by.contains(&id) {
+
+            node.visited_by.insert(id);
+            Ok(Action::Keep(node))
+        } else {
+
+            self.transform(node)
+        }
+
+    }
+
+}
+
+impl Action {
+
+    // TODO: add some sort of matching mechanism to avoid double-match
+    pub fn append_children(node : Node, mut children : Vec<Node>) -> Action {
+
+        match node {
+            Node { 
+                kind: NodeKind::Env(
+                    EnvNode{ 
+                        header, 
+                        kind: EnvNodeKind::Open(mut old_children)
+                    }
+                ),
+                ..
+            } => {
+                old_children.append(&mut children);
+
+                Action::Replace(
+                    Node {
+                        kind: {
+                            NodeKind::Env(
+                                EnvNode{ 
+                                    header, 
+                                    kind: EnvNodeKind::Open(old_children)
+                                }
+                            )
+                        },
+                        ..node
+                    }
+                )
+            }
+            _ => Action::Keep(node)
+        }
+    }
+
 }
 
 fn transform_node_single_pass(
@@ -27,10 +81,10 @@ fn transform_node_single_pass(
 
     let mut transform_action = Action::Keep(node);
 
-    for visitor in transformers {
+    for (i, transformer) in transformers.iter().enumerate() {
         match transform_action {
             Action::Keep(node) | Action::Replace(node) => {
-                transform_action = visitor.transform_node(node)?
+                transform_action = transformer.transform_once(i, node)?;
             },
             Action::Remove => break
         }
@@ -41,14 +95,18 @@ fn transform_node_single_pass(
         // TODO: also split up actions into WithNode and WithoutNode or similar
         Action::Keep(
             Node { 
+                id,
                 kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
-                position
+                position,
+                visited_by,
             }
         ) | 
         Action::Replace(
             Node { 
+                id,
                 kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
-                position
+                position,
+                visited_by,
             }
         ) => {
             
@@ -73,11 +131,12 @@ fn transform_node_single_pass(
                 .collect::<Vec<Node>>();
 
             let node = Node {
+                id,
                 kind: NodeKind::Env(EnvNode::new_open(header, children)),
-                position
+                position,
+                visited_by
             };
         
-
             Ok(if has_changed { Action::Replace(node) } else { Action::Keep(node) })
         },
         _ => Ok(transform_action)
@@ -114,7 +173,7 @@ pub struct DefaultTransformer;
 // default transformer that is always active
 impl Transformer for DefaultTransformer {
 
-    fn transform_node(&self, node : Node) -> TransformResult {
+    fn transform(&self, node : Node) -> TransformResult {
 
         match &node.kind {
             NodeKind::Leaf(LeafNode::Comment(_)) => Ok(Action::Remove),
@@ -130,7 +189,7 @@ struct EquationTransformer;
 // puts any equations into a <pre> tag
 impl Transformer for EquationTransformer {
 
-    fn transform_node(&self, node : Node) -> TransformResult {
+    fn transform(&self, node : Node) -> TransformResult {
 
         match &node.kind {
             // match inline equations

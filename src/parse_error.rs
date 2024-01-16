@@ -1,5 +1,6 @@
 
 use core::fmt;
+use std::fmt::Display;
 
 use crate::parse::{ParserPosition, TokenKind};
 
@@ -104,9 +105,14 @@ impl ParseError {
         }
 
     }
-
 }
 
+impl Display for ParseError {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TODO: not context provided")
+    }
+}
 
 #[cfg(test)]
 mod tests {

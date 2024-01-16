@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
     /// Create a new parser from a source slice. 
     /// 
     pub fn new(src : & 'a str) -> Self {
-        Parser { 
+        Parser {
             iter: src.chars(), 
             remaining: src, 
             position: ParserPosition::zero(),
@@ -459,12 +459,7 @@ impl<'a> Parser<'a> {
                 _ => unreachable!(),
             };
             
-            children.push(
-                Node{ 
-                    position: stop_position, 
-                    kind
-                }
-            );
+            children.push(Node::new(kind, NodePosition::Source(stop_position)));
         }
         
         Ok(children)
@@ -526,7 +521,7 @@ impl<'a> Parser<'a> {
                         |t| self.parsed_tokens.get(t).value
                     ).unwrap_or("");
 
-                    attrs.insert(key.to_string(), value.to_string());
+                    attrs.insert(key.to_string(), Some(value.to_string()));
 
                     // skip any whitespace after the value
                     self.try_parse_token(&TokenKind::Whitespace);
@@ -659,15 +654,17 @@ impl<'a> Parser<'a> {
     /// Parses entire document.
     /// 
     fn parse_document(&mut self) -> Result<Node, ParseError> {
-        
+
         let children = self.parse_children(
             TokenKind::EndOfModule
         )?;
 
-        Ok(Node {
-            kind: NodeKind::Env(EnvNode::new_module(children)),
-            position: ParserPosition::zero()
-        })
+        Ok(
+            Node::new(
+                NodeKind::Env(EnvNode::new_module(children)),
+                NodePosition::Source(ParserPosition::zero())
+            )
+        )
     }
     
 }
@@ -788,38 +785,38 @@ mod tests {
             (
                 "label=\"foo\"/>",
                 EnvNodeAttrs::from([
-                    ("label".to_string(), "foo".to_string()),
+                    ("label".to_string(), Some("foo".to_string())),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
             (
                 "label=\"foo\">",
                 EnvNodeAttrs::from([
-                    ("label".to_string(), "foo".to_string()),
+                    ("label".to_string(), Some("foo".to_string())),
                 ]),
                 TokenKind::RightAngle,
             ),
             (
                 "label=\"foo\"  bar=\"1\" >",
                 EnvNodeAttrs::from([
-                    ("label".to_string(), "foo".to_string()),
-                    ("bar".to_string(), "1".to_string()),
+                    ("label".to_string(),Some("foo".to_string())),
+                    ("bar".to_string(), Some("1".to_string())),
                 ]),
                 TokenKind::RightAngle,
             ),
             (
                 "label=\"foo\" bar=\"1\">",
                 EnvNodeAttrs::from([
-                    ("label".to_string(), "foo".to_string()),
-                    ("bar".to_string(), "1".to_string()),
+                    ("label".to_string(),Some("foo".to_string())),
+                    ("bar".to_string(), Some("1".to_string())),
                 ]),
                 TokenKind::RightAngle,
             ),
             (
                 "label=\"foo\"\n\tbar=\"1\"\n />",
                 EnvNodeAttrs::from([
-                    ("label".to_string(), "foo".to_string()),
-                    ("bar".to_string(), "1".to_string()),
+                    ("label".to_string(), Some("foo".to_string())),
+                    ("bar".to_string(), Some("1".to_string())),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
