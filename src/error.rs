@@ -1,6 +1,4 @@
 
-use std::fmt::Display;
-
 use crate::{transform::TransformError, document::EmitError, parse_error::ParseError};
 
 pub enum ErrorKind<'a> {
@@ -39,15 +37,3 @@ impl<'a> Error<'a> {
 
 }
 
-impl <'a> Display for Error<'a> {
-
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        
-        match &self.kind {
-            ErrorKind::Parse(err) => write!(f, "{}", err.display(self.src)),
-            ErrorKind::Transform(_) => todo!(),
-            ErrorKind::Emit(_) => todo!(),
-        }   
-
-    }
-}

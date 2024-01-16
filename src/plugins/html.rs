@@ -136,15 +136,15 @@ mod test {
 
         let src = "test";
 
-        let (doc, _) = parse(src).unwrap();
+        let (doc, _) = parse(src);
 
-        let doc = transform::transform(
+        let _doc = transform::transform(
             doc, 
             &mut vec![Box::new(HTMLPlugin)],
             1
         ).unwrap();
 
-        dbg!(doc);
+        // TODO
     }
 
 }

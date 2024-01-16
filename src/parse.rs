@@ -28,7 +28,8 @@ impl Ord for ParserPosition {
 }
 
 pub struct TokenStorage<'a> {
-    tokens: Vec<Token<'a>>
+    tokens: Vec<Token<'a>>,
+    errors: Vec<Token<'a>>
 }
 
 pub struct Parser<'a>{
@@ -42,8 +43,10 @@ pub struct Parser<'a>{
     parsed_tokens: TokenStorage<'a>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TokenHandle(usize);
+
+impl Copy for TokenHandle {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind{
@@ -67,6 +70,7 @@ pub enum TokenKind{
     EnvName,
     AttrName,
     StringLiteral,
+    Error(ParseError)
 }
 
 
@@ -95,7 +99,7 @@ impl ParserPosition {
         
         if *c == '\n' {
             self.line += 1;
-            self.col = 0
+            self.col = 0;
         } else {
             self.col += 1;
         }
@@ -131,15 +135,14 @@ impl<'a> Token<'a> {
 impl<'a> TokenStorage<'a> {
     
     pub fn new() -> Self {
-        Self { tokens: Vec::new() }
+        Self { 
+            tokens: Vec::new(), 
+            errors: Vec::new()
+        }
     }
     
     fn get(&self, handle : TokenHandle) -> &Token<'a> {
         self.tokens.get(handle.0).unwrap()
-    }
-
-    fn get_option(&self, handle : Option<TokenHandle>) -> Option<&Token<'a>> {
-        handle.map(|handle| self.get(handle))
     }
 
     //
@@ -162,7 +165,7 @@ impl<'a> Parser<'a> {
             iter: src.chars(), 
             remaining: src, 
             position: ParserPosition::zero(),
-            parsed_tokens: TokenStorage::new(),
+            parsed_tokens: TokenStorage::new()
         }
     }
 
@@ -272,7 +275,8 @@ impl<'a> Parser<'a> {
             TokenKind::EnvName | 
             TokenKind::AttrName | 
             TokenKind::CommentText |
-            TokenKind::StringLiteral => unreachable!(
+            TokenKind::StringLiteral |
+            TokenKind::Error(_) => unreachable!(
                 "Cannot use non-matchable token for matching."
             ),
         };
@@ -281,12 +285,31 @@ impl<'a> Parser<'a> {
             Some(s) => {
                 // TODO: this will skip n bytes, not n chars as str.len() is in bytes
                 self.skip(s.len());
+
+                Some(s)
             },
-            _ => {}
+            _ => None
         }
 
-        value
+    }
 
+    fn push_token(&mut self, token : Token<'a>) -> TokenHandle {
+        self.parsed_tokens.push(token)
+    }
+
+    fn get_token(&self, handle : TokenHandle) -> &Token<'a> {
+        self.parsed_tokens.get(handle)
+    }
+
+    //
+    //  Returns what was captured by seek_to_and_capture.
+    //  In case of an empty string, seek_to_and_capture will not create a token.
+    //
+    fn get_captured_value(&self, handle : Option<TokenHandle>) -> &'a str {
+        match handle {
+            None => "",
+            Some(handle) => self.get_token(handle).value
+        }
     }
 
     ///
@@ -294,11 +317,17 @@ impl<'a> Parser<'a> {
     /// Same as seek_to but also captures all skipped chars 
     /// in token with captured_kind.
     /// 
+    /// Returns (captured_token_handle, end_token_handle)
+    /// 
+    /// end_token_handle always points to one of the end_kinds provided or EndOfModule.
+    /// 
+    /// captured_token_handle may be None if zero chars were captured
+    /// 
     fn seek_to_and_capture(
         &mut self, 
         captured_kind : TokenKind,
         end_kinds : &[TokenKind],
-    ) -> (Option<TokenHandle>, Option<TokenHandle>) {
+    ) -> (Option<TokenHandle>, TokenHandle) {
 
         let prev_position = self.position.clone();
 
@@ -313,23 +342,41 @@ impl<'a> Parser<'a> {
         let captured_length = end_position - prev_position.byte_idx;
 
         let captured_handle = (captured_length > 0).then(
-            || self.parsed_tokens.push(Token { 
+            || self.push_token(Token { 
                 value: &prev_remaining[..captured_length], 
-                position: prev_position, 
+                position: prev_position.clone(), 
                 kind: captured_kind
             })
         );
 
-        let end_handle = end_token.map(
-            |token| self.parsed_tokens.push(token)
-        );
+        let end_handle = match end_token {
+            Some(token) => self.push_token(token),
+            None => {
+                self.push_error(
+                    ParseError::unexpected_eof(end_kinds),
+                    // error position for unexpected end of file is the start of the seek_to operation
+                    &prev_position,
+                    // eof error has no meaningful value
+                    ""
+                );
+
+                self.push_token(Token { 
+                    kind: TokenKind::EndOfModule, 
+                    value: "", 
+                    position: self.position.clone()
+                })
+            }
+        };
 
         (captured_handle, end_handle)
     }   
 
-    /**
-     * Moves the iterator right behind the first matching token.
-     */
+    ///
+    /// Moves the iterator right behind the first matching token.
+    /// Returns the first matching token.
+    /// 
+    /// Returns None if end of input is reached and EndOfModule is not in tokens.
+    /// 
     fn seek_to(&mut self, tokens : &[TokenKind])  -> Option<Token<'a>> {
         
         while self.remaining.len() > 0 {
@@ -345,14 +392,13 @@ impl<'a> Parser<'a> {
                             kind: kind.clone(),
                             position
                         }
-                    );
+                    )
                 }
             }
-
+            
             self.next_unescaped_char();
         }
 
-        // TODO: this is a shim because the loop above stops before EndOfModule could possibly match
         tokens.contains(&TokenKind::EndOfModule).then(
             || Token {
                 value: "",
@@ -363,27 +409,25 @@ impl<'a> Parser<'a> {
 
     }
 
-    pub fn parse_comment(&mut self) -> Result<&'a str, ParseError> {
+    pub fn push_error(&mut self, error : ParseError, position : &ParserPosition, value : &'a str) {
+
+        self.parsed_tokens.errors.push(Token {
+            kind: TokenKind::Error(error),
+            position: position.clone(),
+            value
+        });
+    }
+
+    pub fn parse_comment(&mut self) -> &'a str {
 
         // TODO: allow nested comments
 
-        let position = self.position.clone();
-
-        let (text, end_token) = self.seek_to_and_capture(
+        let (text, _) = self.seek_to_and_capture(
             TokenKind::CommentText,
             &[TokenKind::CommentClose]
         );
 
-        end_token.ok_or(
-            ParseError::env_not_closed(
-                &TokenKind::CommentClose, 
-                &position
-            )
-        )?;
-
-        Ok(text.map(
-            |t| self.parsed_tokens.get(t).value
-        ).unwrap_or(""))
+        self.get_captured_value(text)
     }
 
     /// 
@@ -392,31 +436,27 @@ impl<'a> Parser<'a> {
     pub fn parse_children(
         &mut self,
         closing_tag : TokenKind
-    ) -> Result<Vec<Node>, ParseError> {
+    ) -> Vec<Node> {
 
         let mut children = Vec::new();
         
-        let start_position = self.position.clone();
-
         loop {
 
             let (text, stop_token) = self.seek_to_and_capture(
-                    TokenKind::Text,
-                    &[
-                        closing_tag.clone(), 
-                        TokenKind::EnvOpen, 
-                        TokenKind::Dollar,
-                        TokenKind::CommentOpen
-                    ],
-                );
-
-            let stop_token = self.parsed_tokens.get(stop_token.ok_or(
-                ParseError::env_not_closed(&closing_tag, &start_position)
-            )?);
-            
-            self.parsed_tokens.get_option(text).map(
-                |token| children.push(Node::new_text(token))
+                TokenKind::Text,
+                &[
+                    closing_tag.clone(), 
+                    TokenKind::EnvOpen, 
+                    TokenKind::Dollar,
+                    TokenKind::CommentOpen
+                ],
             );
+
+            let stop_token = self.get_token(stop_token);
+
+            if let Some(text) = text {
+                children.push(Node::new_text(self.get_token(text)))
+            }
 
             let stop_kind = stop_token.kind.clone();
             let stop_position = stop_token.position.clone();
@@ -425,36 +465,23 @@ impl<'a> Parser<'a> {
 
                 _ if stop_kind == closing_tag => break,
                 
-                TokenKind::EnvOpen => NodeKind::Env(self.parse_env_from_name()?),
+                TokenKind::EnvOpen => NodeKind::Env(self.parse_env_from_name()),
 
                 TokenKind::Dollar => {
 
-                    let (math, dollar) = self.
+                    let (math, _) = self.
                         seek_to_and_capture(
                             TokenKind::Math,
                             &[TokenKind::Dollar]
                         );
                     
-                    // math may be empty
-                    let math = match math {
-                        Some(handle) => self.parsed_tokens.get(handle).value,
-                        None => "",
-                    };
+                    let math = self.get_captured_value(math);
 
-                    dollar.map(
-                        |_| NodeKind::Leaf(
-                            LeafNode::InlineEquation(String::from(math))
-                        )
-                    ).ok_or(
-                        ParseError::env_not_closed(
-                            &TokenKind::Dollar,
-                            &stop_position
-                        ),
-                    )?
+                    NodeKind::Leaf(LeafNode::InlineEquation(String::from(math)))
                 },
 
                 TokenKind::CommentOpen => NodeKind::Leaf(
-                    LeafNode::Comment(self.parse_comment()?.to_string())
+                    LeafNode::Comment(self.parse_comment().to_string())
                 ),
 
                 _ => unreachable!(),
@@ -463,15 +490,13 @@ impl<'a> Parser<'a> {
             children.push(Node::new(kind, NodePosition::Source(stop_position)));
         }
         
-        Ok(children)
+        children
     }
 
     ///
     /// Parse env header attributes after the env name
     /// 
-    pub fn parse_env_header_attrs(&mut self) -> Result<(EnvNodeAttrs, TokenKind), ParseError> {
-
-        let start_position = self.position.clone();
+    pub fn parse_env_header_attrs(&mut self) -> (EnvNodeAttrs, TokenKind) {
 
         let mut attrs = EnvNodeAttrs::new();
 
@@ -487,43 +512,39 @@ impl<'a> Parser<'a> {
                 ]
             );
 
-            let end_token = self.parsed_tokens.get(
-                end_token.ok_or(
-                    ParseError::env_header_not_closed(&start_position)
-                )?
-            );
+            let end_token = self.get_token(end_token);
+
+            let end_position = end_token.position.clone();
 
             match end_token.kind {
 
                 TokenKind::Equals => {
+                    let key = match key {
+                        Some(key) => self.get_token(key).value.to_string(),
+                        None => {
+                            self.push_error(
+                                ParseError::missing_attr_name(), 
+                                &end_position, 
+                                ""
+                            );
 
-                    let key = self.parsed_tokens.get(
-                        key.ok_or(
-                            ParseError::missing_attr_name(&self.position)
-                        )?
-                    ).value.to_string();
+                            // just name the key "<error>" and continue on with normal life
+                            String::from("<error>")
+                        }
+                    };
 
-                    let position = self.position.clone();
-
-                    let (_, start_quote) = self.seek_to_and_capture(
-                        TokenKind::Text,
+                    // skip whitespace until the opening quote
+                    self.seek_to_and_capture(
+                        TokenKind::Whitespace,
                         &[TokenKind::Quote]
                     );
 
-                    let start_quote_position = self.parsed_tokens.get(
-                        start_quote.ok_or(ParseError::missing_attr_value(&position))?
-                    ).position.clone();
-
-                    let (captured, end_quote) = self.seek_to_and_capture(
+                    let (captured, _) = self.seek_to_and_capture(
                         TokenKind::StringLiteral,
                         &[TokenKind::Quote]
                     );
 
-                    end_quote.ok_or(ParseError::quote_not_closed(&start_quote_position))?;
-
-                    let value = captured.map(
-                        |t| self.parsed_tokens.get(t).value
-                    ).unwrap_or("");
+                    let value = self.get_captured_value(captured);
 
                     attrs.insert(key, Some(value.to_string()));
 
@@ -532,10 +553,13 @@ impl<'a> Parser<'a> {
 
                 },
 
-                TokenKind::EnvSelfClose | TokenKind::RightAngle | TokenKind::Whitespace => {
+                TokenKind::EnvSelfClose | 
+                TokenKind::RightAngle | 
+                TokenKind::Whitespace | 
+                TokenKind::EndOfModule => {
 
                     if let Some(key) = key {
-                        let key = self.parsed_tokens.get(key).value.to_string();
+                        let key = self.get_token(key).value.to_string();
 
                         attrs.insert(key, None);
                     } 
@@ -543,7 +567,7 @@ impl<'a> Parser<'a> {
                     match end_token.kind {
 
                         TokenKind::EnvSelfClose | TokenKind::RightAngle => {
-                            return Ok((attrs, end_token.kind.clone()));
+                            return (attrs, end_token.kind.clone());
                         },
 
                         _ => { }
@@ -561,9 +585,7 @@ impl<'a> Parser<'a> {
     /// Parse an env node header starting from the name. 
     /// Example input: "Eq>", "Eq label='eq:my_equation'>"
     /// 
-    pub fn parse_env_header_from_name(&mut self) -> Result<(EnvNodeHeader, TokenKind), ParseError> {
-
-        let start_position = self.position.clone();
+    pub fn parse_env_header_from_name(&mut self) -> (EnvNodeHeader, TokenKind) {
 
         let (name, stop_token) = self
             .seek_to_and_capture(
@@ -577,29 +599,23 @@ impl<'a> Parser<'a> {
 
         // name can be unwrapped: 
         // EnvOpen only matches if followed by a letter
-        let name = self.parsed_tokens.get(name.unwrap()).value;
+        let name = self.get_token(name.unwrap()).value;
 
         let mut header = EnvNodeHeader::new_empty(name);
 
-        let stop_token = self.parsed_tokens.get(
-            stop_token.ok_or(
-                ParseError::env_header_not_closed(&start_position)
-            )?
-        );
+        let stop_kind = self.get_token(stop_token).kind.clone();
 
-        let stop_kind = match stop_token.kind {
-            TokenKind::Whitespace => {
+        if stop_kind == TokenKind::Whitespace {
                 
-                let (attrs, stop_kind) = self.parse_env_header_attrs()?;
+            let (attrs, stop_kind_after_attrs) = self.parse_env_header_attrs();
 
-                header.attrs = attrs;
+            header.attrs = attrs;
 
-                stop_kind
-            },
-            _ => stop_token.kind.clone(),
-        };
+            (header, stop_kind_after_attrs)
+        } else {
 
-        Ok((header, stop_kind))
+            (header, stop_kind)
+        }
 
     }
 
@@ -607,13 +623,11 @@ impl<'a> Parser<'a> {
     /// Begins parsing an environment node right after the '<'
     /// Example input: "Document></Document>"
     /// 
-    pub fn parse_env_from_name(&mut self) -> Result<EnvNode, ParseError> {
+    pub fn parse_env_from_name(&mut self) -> EnvNode {
 
-        let (header, stop_token) = self.parse_env_header_from_name()?;
-        
-        let body_position = self.position.clone();
+        let (header, stop_token) = self.parse_env_header_from_name();
 
-        Ok(match stop_token {
+        match stop_token {
 
             TokenKind::EnvSelfClose => EnvNode::new_self_closing(header),
 
@@ -622,20 +636,18 @@ impl<'a> Parser<'a> {
                         
                     let closing_tag = TokenKind::new_env_close(&header.kind);
                     
-                    let (text, stop_token) = self.seek_to_and_capture(
+                    let (text, _) = self.seek_to_and_capture(
                         TokenKind::Text,
                         &[closing_tag.clone()],
                     );
 
-                    stop_token.ok_or(ParseError::env_not_closed(&closing_tag, &body_position))?;
-
                     if let Some(text) = text {
-                        vec![Node::new_text(self.parsed_tokens.get(text))]
+                        vec![Node::new_text(self.get_token(text))]
                     } else {
-                        vec![]
+                        Vec::new()
                     }
                 } else {
-                    self.parse_children(TokenKind::new_env_close(&header.kind))?
+                    self.parse_children(TokenKind::new_env_close(&header.kind))
                 };
 
                 EnvNode::new_open(header, children)
@@ -643,7 +655,7 @@ impl<'a> Parser<'a> {
 
             // kind can only be one of the variants passed to seek_to_and_capture
             _ => unreachable!()
-        })
+        }
 
     }
 
@@ -651,29 +663,27 @@ impl<'a> Parser<'a> {
     /// Returns document node.
     /// Parses entire document.
     /// 
-    fn parse_document(&mut self) -> Result<Node, ParseError> {
+    fn parse_document(&mut self) -> Node {
 
         let children = self.parse_children(
             TokenKind::EndOfModule
-        )?;
+        );
 
-        Ok(
-            Node::new(
-                NodeKind::Env(EnvNode::new_module(children)),
-                NodePosition::Source(ParserPosition::zero())
-            )
+        Node::new(
+            NodeKind::Env(EnvNode::new_module(children)),
+            NodePosition::Source(ParserPosition::zero())
         )
     }
     
 }
 
-pub fn parse(src : &str) -> Result<(Node, TokenStorage), ParseError> {
+pub fn parse(src : &str) -> (Node, TokenStorage) {
     
     let mut parser = Parser::new(src);
 
-    let document = parser.parse_document()?;
+    let document = parser.parse_document();
 
-    Ok((document, parser.parsed_tokens))    
+    (document, parser.parsed_tokens)
 }
 
 #[cfg(test)]
@@ -694,13 +704,11 @@ mod tests {
                 // expected tokens
                 (
                     Option::<Token>::None, 
-                    Some(
-                        Token {
-                            position: ParserPosition::zero(),
-                            value: "</Document>",
-                            kind: end_document.clone()
-                        }
-                    )
+                    Token {
+                        position: ParserPosition::zero(),
+                        value: "</Document>",
+                        kind: end_document.clone()
+                    }
                 )
             ),
             (
@@ -716,13 +724,11 @@ mod tests {
                             kind: TokenKind::Text
                         }
                     ),
-                    Some(
-                        Token {
-                            position: ParserPosition::new(0, 18, 18),
-                            value: "</Document>",
-                            kind: end_document.clone()
-                        }
-                    )
+                    Token {
+                        position: ParserPosition::new(0, 18, 18),
+                        value: "</Document>",
+                        kind: end_document.clone()
+                    }
                 )
             ),
             (
@@ -738,7 +744,11 @@ mod tests {
                             kind: TokenKind::Text
                         }
                     ),
-                    None
+                    Token {
+                        position: ParserPosition::new(1, 21, 31),
+                        value: "",
+                        kind: TokenKind::EndOfModule
+                    }
                 )
             )
         ];
@@ -758,13 +768,13 @@ mod tests {
             assert_eq!(parser.remaining.len(), 0);
 
             assert_eq!(
-                parser.parsed_tokens.get_option(captured),
+                captured.map(|handle| parser.get_token(handle)),
                 expected.0.as_ref(),
             );
 
             assert_eq!(
-                parser.parsed_tokens.get_option(end),
-                expected.1.as_ref(),
+                parser.get_token(end),
+                &expected.1
             );
         }
     }
@@ -847,7 +857,7 @@ mod tests {
 
             let mut parser = Parser::new(src);
 
-            let (attrs, end_token) = parser.parse_env_header_attrs().unwrap();
+            let (attrs, end_token) = parser.parse_env_header_attrs();
 
             assert_eq!(end_token, expected_end);
             
@@ -884,6 +894,8 @@ mod tests {
                     </Section>
                 </Chapter>
 
+                <Something foo />
+
                 /** A comment */"#,
                 ()
             )
@@ -892,9 +904,10 @@ mod tests {
         for (src, _) in cases {
 
             // TODO check the resulting document tree
-            let (_document, _tokens) = parse(src).unwrap();
+            let (_document, tokens) = parse(src);
 
-            // dbg!(&document);
+            assert_eq!(tokens.errors, Vec::new());
+        
         }
 
     } 

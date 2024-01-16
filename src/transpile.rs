@@ -10,9 +10,7 @@ pub fn transpile<'a>(
     transformers : &mut Vec<Box<dyn Transformer>>
 ) -> Result<Node, Error<'a>> {
 
-    let (document, _) = parse(src).map_err(
-        |e| Error::parse(e, src)
-    )?;
+    let (document, _) = parse(src);
 
     transform(
         document,

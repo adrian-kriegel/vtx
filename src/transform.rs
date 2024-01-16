@@ -280,7 +280,7 @@ mod test {
                 e = mc^2
             </Eq>
             "#
-        ).unwrap();
+        );
 
         let document = transform(
             document, 
