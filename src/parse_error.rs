@@ -8,6 +8,7 @@ use crate::parse::{ParserPosition, TokenKind};
 pub enum ParseErrorKind {
     EnvHeaderNotClosed,
     EnvNotClosed,
+    MissingAttrName,
     MissingAttrValue,
     QuoteNotClosed,
     Unknown,
@@ -68,6 +69,14 @@ impl ParseError {
             kind: ParseErrorKind::MissingAttrValue,
             position: position.clone(),
             message: String::from("Expected attribute value after '='."),
+        }
+    }
+
+    pub fn missing_attr_name(position : &ParserPosition) -> Self{
+        ParseError{
+            kind: ParseErrorKind::MissingAttrName,
+            position: position.clone(),
+            message: String::from("Expected attribute name before '='."),
         }
     }
 

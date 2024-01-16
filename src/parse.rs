@@ -42,6 +42,7 @@ pub struct Parser<'a>{
     parsed_tokens: TokenStorage<'a>
 }
 
+#[derive(Debug)]
 pub struct TokenHandle(usize);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -492,9 +493,16 @@ impl<'a> Parser<'a> {
                 )?
             );
 
-            let end_kind = match end_token.kind {
+            match end_token.kind {
 
                 TokenKind::Equals => {
+
+                    let key = self.parsed_tokens.get(
+                        key.ok_or(
+                            ParseError::missing_attr_name(&self.position)
+                        )?
+                    ).value.to_string();
+
                     let position = self.position.clone();
 
                     let (_, start_quote) = self.seek_to_and_capture(
@@ -517,44 +525,34 @@ impl<'a> Parser<'a> {
                         |t| self.parsed_tokens.get(t).value
                     ).unwrap_or("");
 
-                    let key = key.map(
-                        |t| self.parsed_tokens.get(t).value
-                    ).unwrap_or("");
-
-                    attrs.insert(key.to_string(), Some(value.to_string()));
+                    attrs.insert(key, Some(value.to_string()));
 
                     // skip any whitespace after the value
                     self.try_parse_token(&TokenKind::Whitespace);
 
-                    None
                 },
 
-                TokenKind::Whitespace => {
-                    let (_, end_token) = self.seek_to_and_capture(
-                        TokenKind::AttrName,
-                        &[
-                            TokenKind::EnvSelfClose,
-                            TokenKind::RightAngle,
-                        ]
-                    );
+                TokenKind::EnvSelfClose | TokenKind::RightAngle | TokenKind::Whitespace => {
 
-                    let end_token = self.parsed_tokens.get(
-                        end_token.ok_or(
-                            ParseError::env_header_not_closed(&start_position)
-                        )?
-                    );
+                    if let Some(key) = key {
+                        let key = self.parsed_tokens.get(key).value.to_string();
 
-                    Some(end_token.kind.clone())
+                        attrs.insert(key, None);
+                    } 
+                    
+                    match end_token.kind {
+
+                        TokenKind::EnvSelfClose | TokenKind::RightAngle => {
+                            return Ok((attrs, end_token.kind.clone()));
+                        },
+
+                        _ => { }
+                    };
+
                 },
-
-                TokenKind::EnvSelfClose | TokenKind::RightAngle => Some(end_token.kind.clone()),
 
                 _ => unreachable!()
             };
-
-            if let Some(end_kind) = end_kind {
-                return Ok((attrs, end_kind))
-            }
         };
 
     }
@@ -817,6 +815,29 @@ mod tests {
                 EnvNodeAttrs::from([
                     ("label".to_string(), Some("foo".to_string())),
                     ("bar".to_string(), Some("1".to_string())),
+                ]),
+                TokenKind::EnvSelfClose,
+            ),
+            (
+                "some_attr />",
+                EnvNodeAttrs::from([
+                    ("some_attr".to_string(), None),
+                ]),
+                TokenKind::EnvSelfClose,
+            ),
+            (
+                "label=\"foo\" bar />",
+                EnvNodeAttrs::from([
+                    ("label".to_string(), Some("foo".to_string())),
+                    ("bar".to_string(), None),
+                ]),
+                TokenKind::EnvSelfClose,
+            ),
+            (
+                "label=\"foo\" bar/>",
+                EnvNodeAttrs::from([
+                    ("label".to_string(), Some("foo".to_string())),
+                    ("bar".to_string(), None),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
