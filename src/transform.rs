@@ -1,4 +1,6 @@
 
+use std::collections::HashSet;
+
 use crate::document::*;
 
 #[derive(Debug)]
@@ -16,23 +18,40 @@ pub enum Action {
 
 pub type TransformResult = Result<Action, TransformError>;
 
-pub type TransformerId = usize;
-
 pub trait Transformer {
     
     fn transform(&mut self, node : Node) -> TransformResult;
     
-    fn transform_once(&mut self, id : TransformerId, mut node : Node) -> TransformResult {
+}
 
-        if node.visited_by.contains(&id) {
+pub struct TransformerOnce<T : Transformer> {
 
-            node.visited_by.insert(id);
+    transformer: T,
+
+    visited: HashSet<NodeId>
+}
+
+impl<T: Transformer> Transformer for TransformerOnce<T> {
+
+    fn transform(&mut self, node : Node) -> TransformResult {
+
+        if self.visited.contains(&node.id) {
             Ok(Action::Keep(node))
         } else {
-
-            self.transform(node)
+            self.visited.insert(node.id);
+            self.transformer.transform(node)
         }
+    }
 
+}
+
+impl<T : Transformer> TransformerOnce<T> {
+
+    pub fn new(transformer : T) -> Self {
+        Self {
+            transformer,
+            visited: HashSet::new()
+        }
     }
 
 }
@@ -76,14 +95,10 @@ impl Action {
 
 fn transform_node_single_pass(
     node : Node,
-    transformer : &mut Box<dyn Transformer>,
-    transformer_id : TransformerId
+    transformer : &mut Box<dyn Transformer>
 ) -> TransformResult {
 
-    let transform_action = transformer.transform_once(
-        transformer_id,
-        node
-    )?;
+    let transform_action = transformer.transform(node)?;
 
     match transform_action {
         // TODO: tidy up NodeKind: split into Leaf (no children) and NonLeaf (with children) to avoid this
@@ -92,16 +107,14 @@ fn transform_node_single_pass(
             Node { 
                 id,
                 kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
-                position,
-                visited_by,
+                position
             }
         ) | 
         Action::Replace(
             Node { 
                 id,
                 kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
-                position,
-                visited_by,
+                position
             }
         ) => {
             
@@ -109,7 +122,7 @@ fn transform_node_single_pass(
 
             let children = children
                 .into_iter()
-                .map(|child| transform_node_single_pass(child, transformer, transformer_id))
+                .map(|child| transform_node_single_pass(child, transformer))
                 .collect::<Result<Vec<Action>, TransformError>>()?
                 .into_iter()
                 .filter(
@@ -128,8 +141,7 @@ fn transform_node_single_pass(
             let node = Node {
                 id,
                 kind: NodeKind::Env(EnvNode::new_open(header, children)),
-                position,
-                visited_by
+                position
             };
         
             Ok(if has_changed { Action::Replace(node) } else { Action::Keep(node) })
@@ -153,13 +165,12 @@ pub fn transform(
     let mut iterations : u32 = 0;
 
     loop {
-        for (itransformer_id, transformer) in transformers.iter_mut().enumerate() {
+        for transformer in transformers.iter_mut() {
             
             action = match action {
                 Action::Keep(node) | Action::Replace(node) => transform_node_single_pass(
                     node, 
-                    transformer, 
-                    itransformer_id
+                    transformer
                 )?,
                 Action::Remove => return Err(TransformError::RootRemoved),
             }

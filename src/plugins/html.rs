@@ -79,8 +79,7 @@ impl crate::transform::Transformer for HTMLPlugin {
                     }
                 ),
                 position,
-                id,
-                visited_by,
+                id
             } => {
 
                 let html_children = vec![
@@ -105,7 +104,6 @@ impl crate::transform::Transformer for HTMLPlugin {
 
                 Ok(Action::Replace(Node {
                     id,
-                    visited_by,
                     kind: NodeKind::Env(
                         EnvNode{ 
                             // TODO: this will cause problems once imports are introduced

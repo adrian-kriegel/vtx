@@ -1,7 +1,7 @@
 
-use std::{collections::{HashMap, HashSet}, sync::atomic::{AtomicUsize, Ordering}};
+use std::{collections::HashMap, sync::atomic::{AtomicUsize, Ordering}};
 
-use crate::{parse::{ParserPosition, Token}, transform::TransformerId};
+use crate::parse::{ParserPosition, Token};
 
 
 #[derive(Debug)]
@@ -65,7 +65,6 @@ pub enum NodePosition {
 #[derive(Debug)]
 pub struct Node {
     pub id : NodeId,
-    pub visited_by : HashSet<TransformerId>,
     pub kind: NodeKind,
     pub position: NodePosition,
 }
@@ -250,8 +249,7 @@ impl Node {
         Node {
             id: Self::generate_id(),
             kind,
-            position,
-            visited_by: HashSet::new()
+            position
         }
     }
 
