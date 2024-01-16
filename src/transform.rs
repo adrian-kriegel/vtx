@@ -208,58 +208,59 @@ impl Transformer for DefaultTransformer {
 
 }
 
-struct EquationTransformer;
+#[cfg(test)]
+mod test {
 
-// puts any equations into a <pre> tag
-impl Transformer for EquationTransformer {
+    struct EquationTransformer;
 
-    fn transform(&mut self, node : Node) -> TransformResult {
+    // puts any equations into a <pre> tag
+    impl Transformer for EquationTransformer {
 
-        match &node.kind {
-            // match inline equations
-            NodeKind::Leaf(LeafNode::InlineEquation(text)) => Ok(
-                Action::Replace(
-                    Node {
-                        kind: NodeKind::Leaf(LeafNode::Text(format!("<pre>{}</pre>", text))),
-                        ..node
+        fn transform(&mut self, node : Node) -> TransformResult {
+
+            match &node.kind {
+                // match inline equations
+                NodeKind::Leaf(LeafNode::InlineEquation(text)) => Ok(
+                    Action::Replace(
+                        Node {
+                            kind: NodeKind::Leaf(LeafNode::Text(format!("<pre>{}</pre>", text))),
+                            ..node
+                        }
+                    )
+                ),
+                // match block equations
+                NodeKind::Env(
+                    EnvNode{
+                        header: EnvNodeHeader{ 
+                            kind: EnvNodeHeaderKind::Eq, 
+                            attrs: _, 
+                            meta_attrs: _
+                        }, 
+                        kind: EnvNodeKind::Open(children) 
                     }
-                )
-            ),
-            // match block equations
-            NodeKind::Env(
-                EnvNode{
-                    header: EnvNodeHeader{ 
-                        kind: EnvNodeHeaderKind::Eq, 
-                        attrs: _, 
-                        meta_attrs: _
-                    }, 
-                    kind: EnvNodeKind::Open(children) 
-                }
-            ) => {
-                // TODO: unwrap
-                // TODO: check that only one child exists
-                let child = children.get(0).unwrap();
+                ) => {
+                    // TODO: unwrap
+                    // TODO: check that only one child exists
+                    let child = children.get(0).unwrap();
 
-                if let NodeKind::Leaf(LeafNode::Text(text)) = &child.kind {
-                    let raw_node = Node {
-                        kind: NodeKind::Leaf(LeafNode::Text(format!("<p><pre>{}</pre></p>", text))),
-                        ..node
-                    };
+                    if let NodeKind::Leaf(LeafNode::Text(text)) = &child.kind {
+                        let raw_node = Node {
+                            kind: NodeKind::Leaf(LeafNode::Text(format!("<p><pre>{}</pre></p>", text))),
+                            ..node
+                        };
 
-                    Ok(Action::Replace(raw_node))
-                } else {
-                    Ok(Action::Remove)
-                }
-            },
-            _ => Ok(Action::Keep(node))
+                        Ok(Action::Replace(raw_node))
+                    } else {
+                        Ok(Action::Remove)
+                    }
+                },
+                _ => Ok(Action::Keep(node))
+            }
+
         }
 
     }
 
-}
-
-#[cfg(test)]
-mod test {
 
     use super::*;
     use crate::parse;
