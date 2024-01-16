@@ -62,6 +62,7 @@ pub enum TokenKind{
     Dollar,
     Equals,
     Quote,
+    Hash,
     // TODO: these are non-matchable tokens that are only parsed when capturing
     //       separate matchable from non-matchable tokens
     Text,
@@ -267,9 +268,13 @@ impl<'a> Parser<'a> {
                 || &self.remaining[..closer.len()]
             ),
 
+            TokenKind::Hash => self.remaining.starts_with("#")
+                .then(|| "#"),
+
             // These can never be used for matching 
             // as they would match anything
             // TODO: split TokenKind into matchable and non-matchable
+            // not using a default match is intentional to ensure that all other cases are handled
             TokenKind::Text | 
             TokenKind::Math | 
             TokenKind::EnvName | 
@@ -430,6 +435,19 @@ impl<'a> Parser<'a> {
         self.get_captured_value(text)
     }
 
+    fn parse_heading(&mut self) -> NodeKind {
+
+        let mut level = 0;
+
+        while let Some('#') = self.next_char() {
+            level += 1;
+        }
+
+        let contents = self.parse_children(TokenKind::EndOfLine);
+
+        NodeKind::heading(level, contents)
+    }
+
     /// 
     /// Parse children of env node terminated by closing_tag.
     /// 
@@ -448,7 +466,8 @@ impl<'a> Parser<'a> {
                     closing_tag.clone(), 
                     TokenKind::EnvOpen, 
                     TokenKind::Dollar,
-                    TokenKind::CommentOpen
+                    TokenKind::CommentOpen,
+                    TokenKind::Hash
                 ],
             );
 
@@ -465,6 +484,8 @@ impl<'a> Parser<'a> {
 
                 _ if stop_kind == closing_tag => break,
                 
+                TokenKind::Hash => self.parse_heading(),
+
                 TokenKind::EnvOpen => NodeKind::Env(self.parse_env_from_name()),
 
                 TokenKind::Dollar => {
@@ -872,11 +893,15 @@ mod tests {
         let cases = vec![
             (
                 r#"
+                # Example
+
                 This is what a document may look like.
 
                 <Eq label="eq_some_label">
                     e = mc^2
                 </Eq>
+
+                ## Raw Environments
 
                 \<Eq> and \<Code> environents are parsed as "raw". This means they cannot contain other environments.
                 

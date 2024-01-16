@@ -9,6 +9,7 @@ pub enum EnvNodeHeaderKind {
     Eq,
     Code,
     Module,
+    Heading(u8),
     Other(String)
 }
 
@@ -180,6 +181,9 @@ impl EnvNodeHeaderKind {
             EnvNodeHeaderKind::Eq => "Eq",
             EnvNodeHeaderKind::Code => "Code",
             EnvNodeHeaderKind::Module => "",
+            EnvNodeHeaderKind::Heading(0) => "h1",
+            EnvNodeHeaderKind::Heading(1) => "h2",
+            EnvNodeHeaderKind::Heading(_) => "h3",
             EnvNodeHeaderKind::Other(name) => &name
         }
     }
@@ -265,6 +269,23 @@ impl Node {
         NODE_ID_COUNTER.fetch_add(1, Ordering::Relaxed)
 
     }
+}
+
+impl NodeKind {
+
+    pub fn heading(level: u8, children:  Vec<Node>) -> Self {
+        NodeKind::Env(
+            EnvNode {
+                kind: EnvNodeKind::Open(children),
+                header: EnvNodeHeader {
+                    kind: EnvNodeHeaderKind::Heading(level),
+                    attrs: EnvNodeAttrs::new(),
+                    meta_attrs: EnvNodeMetaAttrs { raw: false }
+                }
+            }
+        )
+    }
+
 }
 
 impl CollectBytes for Node {
