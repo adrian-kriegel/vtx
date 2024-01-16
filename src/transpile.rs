@@ -7,8 +7,7 @@ use crate::parse::*;
 
 pub fn transpile<'a>(
     src : &'a str,
-    transformers : &mut Vec<Box<dyn Transformer>>,
-    max_passes : u32
+    transformers : &mut Vec<Box<dyn Transformer>>
 ) -> Result<Node, Error<'a>> {
 
     let (document, _) = parse(src).map_err(
@@ -18,7 +17,7 @@ pub fn transpile<'a>(
     transform(
         document,
         transformers,
-        max_passes
+        1
     ).map_err(
         |e| Error::transform(e, src)
     )

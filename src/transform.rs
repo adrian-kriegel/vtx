@@ -76,19 +76,14 @@ impl Action {
 
 fn transform_node_single_pass(
     node : Node,
-    transformers : &mut Vec<Box<dyn Transformer>>
+    transformer : &mut Box<dyn Transformer>,
+    transformer_id : TransformerId
 ) -> TransformResult {
 
-    let mut transform_action = Action::Keep(node);
-
-    for (i, transformer) in transformers.into_iter().enumerate() {
-        match transform_action {
-            Action::Keep(node) | Action::Replace(node) => {
-                transform_action = transformer.transform_once(i, node)?;
-            },
-            Action::Remove => break
-        }
-    }
+    let transform_action = transformer.transform_once(
+        transformer_id,
+        node
+    )?;
 
     match transform_action {
         // TODO: tidy up NodeKind: split into Leaf (no children) and NonLeaf (with children) to avoid this
@@ -114,7 +109,7 @@ fn transform_node_single_pass(
 
             let children = children
                 .into_iter()
-                .map(|child| transform_node_single_pass(child, transformers))
+                .map(|child| transform_node_single_pass(child, transformer, transformer_id))
                 .collect::<Result<Vec<Action>, TransformError>>()?
                 .into_iter()
                 .filter(
@@ -143,6 +138,10 @@ fn transform_node_single_pass(
     }
 }
 
+///
+/// Transforms the tree until all transformers return Action::Keep
+/// or max_passes is reached.
+/// 
 pub fn transform(
     node : Node,
     transformers : &mut Vec<Box<dyn Transformer>>,
@@ -151,19 +150,33 @@ pub fn transform(
 
     let mut action = Action::Replace(node);
 
-    let mut iterations = 0;
+    let mut iterations : u32 = 0;
 
     loop {
-        action = match action {
-            Action::Replace(node) => transform_node_single_pass(node, transformers)?,
-            Action::Keep(node) => return Ok(node),
-            Action::Remove => return Err(TransformError::RootRemoved),
-        };
+        for (itransformer_id, transformer) in transformers.iter_mut().enumerate() {
+            
+            action = match action {
+                Action::Keep(node) | Action::Replace(node) => transform_node_single_pass(
+                    node, 
+                    transformer, 
+                    itransformer_id
+                )?,
+                Action::Remove => return Err(TransformError::RootRemoved),
+            }
 
-        iterations += 1;
+        }
 
-        if iterations > max_passes {
-            return Err(TransformError::MaxIterationsReached);
+        match action  {
+            Action::Keep(node) => {
+                return Ok(node)
+            },
+            _ => {
+                iterations += 1;
+
+                if iterations > max_passes {
+                    return Err(TransformError::MaxIterationsReached)
+                }
+            }
         }
     }
 }
@@ -260,7 +273,7 @@ mod test {
 
         let document = transform(
             document, 
-            &mut vec![Box::new(DefaultTransformer), Box::new(EquationTransformer)], 
+            &mut vec![Box::new(DefaultTransformer), Box::new(EquationTransformer)],
             3
         ).unwrap();
 
