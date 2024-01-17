@@ -12,8 +12,14 @@ enum Resources {
     Hosted(ResourcesHosted)
 }
 
+pub struct RenderSettings {
+    inline_class_name: String,
+    block_class_name: String
+}
+
 pub struct KatexPlugin {
-    resources: Resources
+    resources: Resources,
+    render_settings: RenderSettings
 }
 
 impl KatexPlugin {
@@ -25,7 +31,11 @@ impl KatexPlugin {
                     script_src: "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js".to_string(),
                     style_src: "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css".to_string(),
                 }
-            )
+            ),
+            render_settings: RenderSettings {
+                block_class_name: String::from("eq-block"),
+                inline_class_name: String::from("eq-inline"),
+            }
         }
     }
 
@@ -36,7 +46,7 @@ impl ResourcesHosted {
     fn nodes(&self) -> Vec<Node> {
 
         let script_attrs = EnvNodeAttrs::from([
-            ("defer".to_string(), None),
+            // ("defer".to_string(), None),
             ("crossorigin".to_string(), Some("anonymous".to_string()))
         ]);
 
@@ -53,6 +63,29 @@ impl KatexPlugin {
     fn resource_nodes(&self) -> Vec<Node> {
         match &self.resources {
             Resources::Hosted(res) => res.nodes(),
+        }
+    }
+
+    fn transform_equation(
+        &self, 
+        id : NodeId,
+        math : &str,
+        inline : bool
+    ) -> Node {
+
+        // TODO: replace with html node
+
+        let element_id = format!("katex-equation-{}", id);
+        let text = format!(
+            "<span class=\"{}\" id=\"{element_id}\" /><script>katex.render({}, document.getElementById(\"{element_id}\"));</script>",
+            if inline { &self.render_settings.inline_class_name } else { &self.render_settings.block_class_name },
+            serde_json::to_string(math).unwrap()
+        );
+
+        Node {
+            id,
+            kind: NodeKind::Leaf(LeafNode::Text(text)),
+            position: NodePosition::Inserted
         }
     }
 
@@ -77,6 +110,33 @@ impl Transformer for KatexPlugin {
                 node, 
                 self.resource_nodes(),
             ),
+            // match inline equations
+            NodeKind::Leaf(LeafNode::InlineEquation(text)) => Action::Replace(
+                self.transform_equation(node.id, &text, true)
+            ),
+            // match block equations
+            NodeKind::Env(
+                EnvNode{
+                    header: EnvNodeHeader{ 
+                        kind: EnvNodeHeaderKind::Eq, 
+                        attrs: _, 
+                        meta_attrs: _
+                    }, 
+                    kind: EnvNodeKind::Open(children) 
+                }
+            ) => {
+                // TODO: unwrap
+                // TODO: check that only one child exists
+                let child = children.get(0).unwrap();
+
+                if let NodeKind::Leaf(LeafNode::Text(text)) = &child.kind {
+                    Action::Replace(
+                        self.transform_equation(node.id, &text, true)
+                    )
+                } else {
+                    Action::Remove
+                }
+            }
             _ => Action::Keep(node),
         };
 

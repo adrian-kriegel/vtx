@@ -20,8 +20,8 @@ fn main() {
     let transformed = transform(
         document,
         &mut vec![
-            Box::new(HTMLPlugin), 
-            Box::new(KatexPlugin::hosted())
+            Box::new(TransformerOnce::new(HTMLPlugin)), 
+            Box::new(TransformerOnce::new(KatexPlugin::hosted()))
         ],
         3
     ).unwrap();
