@@ -495,10 +495,24 @@ impl<'a> Parser<'a> {
                             TokenKind::Math,
                             &[TokenKind::Dollar]
                         );
-                    
-                    let math = self.get_captured_value(math);
+                   
+                    let header_kind = EnvNodeHeaderKind::Eq(EquationKind::Inline);
 
-                    NodeKind::Leaf(LeafNode::InlineEquation(String::from(math)))
+                    NodeKind::Env(
+                        EnvNode{
+                            header: EnvNodeHeader{ 
+                                meta_attrs: EnvNodeMetaAttrs::new(&header_kind),
+                                kind: header_kind, 
+                                attrs: EnvNodeAttrs::new(), 
+                            }, 
+                            kind: EnvNodeKind::Open(
+                                match math {
+                                    Some(token_handle) => vec![Node::new_text(self.get_token(token_handle))],
+                                    None => Vec::new()
+                                }
+                            ) 
+                        }
+                    )
                 },
 
                 TokenKind::CommentOpen => NodeKind::Leaf(
@@ -622,7 +636,7 @@ impl<'a> Parser<'a> {
         // EnvOpen only matches if followed by a letter
         let name = self.get_token(name.unwrap()).value;
 
-        let mut header = EnvNodeHeader::new_empty(name);
+        let mut header = EnvNodeHeader::new_default(name);
 
         let stop_kind = self.get_token(stop_token).kind.clone();
 
@@ -630,7 +644,9 @@ impl<'a> Parser<'a> {
                 
             let (attrs, stop_kind_after_attrs) = self.parse_env_header_attrs();
 
-            header.attrs = attrs;
+            for (key, value) in attrs {
+                header.attrs.insert(key, value);
+            }
 
             (header, stop_kind_after_attrs)
         } else {

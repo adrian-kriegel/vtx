@@ -219,20 +219,11 @@ mod test {
         fn transform(&mut self, node : Node) -> TransformResult {
 
             match &node.kind {
-                // match inline equations
-                NodeKind::Leaf(LeafNode::InlineEquation(text)) => Ok(
-                    Action::Replace(
-                        Node {
-                            kind: NodeKind::Leaf(LeafNode::Text(format!("<pre>{}</pre>", text))),
-                            ..node
-                        }
-                    )
-                ),
-                // match block equations
+                // match equations
                 NodeKind::Env(
                     EnvNode{
                         header: EnvNodeHeader{ 
-                            kind: EnvNodeHeaderKind::Eq, 
+                            kind: EnvNodeHeaderKind::Eq(equation_kind), 
                             attrs: _, 
                             meta_attrs: _
                         }, 
@@ -245,7 +236,12 @@ mod test {
 
                     if let NodeKind::Leaf(LeafNode::Text(text)) = &child.kind {
                         let raw_node = Node {
-                            kind: NodeKind::Leaf(LeafNode::Text(format!("<p><pre>{}</pre></p>", text))),
+                            kind: NodeKind::Leaf(LeafNode::Text(
+                                match equation_kind {
+                                    EquationKind::Block => format!("<p><pre>{}</pre></p>", text),
+                                    EquationKind::Inline => format!("<pre>{}</pre>", text),
+                                },
+                            )),
                             ..node
                         };
 

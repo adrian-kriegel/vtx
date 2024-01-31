@@ -3,10 +3,15 @@ use std::{collections::HashMap, sync::atomic::{AtomicUsize, Ordering}};
 
 use crate::parse::{ParserPosition, Token};
 
+#[derive(Debug)]
+pub enum EquationKind {
+    Inline, 
+    Block,
+}
 
 #[derive(Debug)]
 pub enum EnvNodeHeaderKind {
-    Eq,
+    Eq(EquationKind),
     Code,
     Module,
     Heading(u8),
@@ -43,7 +48,6 @@ pub struct EnvNode {
 
 #[derive(Debug)]
 pub enum LeafNode {
-    InlineEquation(String),
     Text(String),
     Comment(String),
     RawBytes(Vec<u8>)
@@ -158,7 +162,7 @@ impl EnvNodeMetaAttrs {
     pub fn new(header_kind : &EnvNodeHeaderKind) -> Self {
         EnvNodeMetaAttrs {
             raw: match header_kind {
-                EnvNodeHeaderKind::Code | EnvNodeHeaderKind::Eq => true,
+                EnvNodeHeaderKind::Code | EnvNodeHeaderKind::Eq(_) => true,
                 _ => false
             }
         }
@@ -170,7 +174,7 @@ impl EnvNodeHeaderKind {
 
     pub fn new(name : &str) -> Self {
         match name {
-            "Eq" => Self::Eq,
+            "Eq" => Self::Eq(EquationKind::Block),
             "Code" => Self::Code, 
             _ => Self::Other(String::from(name)),
         }
@@ -178,7 +182,7 @@ impl EnvNodeHeaderKind {
 
     pub fn get_name(&self) -> &str {
         match self {
-            EnvNodeHeaderKind::Eq => "Eq",
+            EnvNodeHeaderKind::Eq(_) => "Eq",
             EnvNodeHeaderKind::Code => "Code",
             EnvNodeHeaderKind::Module => "",
             EnvNodeHeaderKind::Heading(0) => "h1",
@@ -197,6 +201,7 @@ impl EnvNodeHeaderKind {
 
 }
 
+
 impl EnvNodeHeader {
 
     /** Create new empty header with the specified nae */
@@ -211,9 +216,16 @@ impl EnvNodeHeader {
         }
     }
 
-    pub fn new_empty(parsed_name : &str) -> Self {
+    pub fn new_default(parsed_name : &str) -> Self {
 
-        Self::new(parsed_name, EnvNodeAttrs::new())
+        Self::new(parsed_name, Self::default_attrs(parsed_name))
+    }
+
+    pub fn default_attrs(parsed_name : &str) -> EnvNodeAttrs {
+        match parsed_name {
+            "Eq" => EnvNodeAttrs::from([("block".to_string(), None)]),
+            _ => EnvNodeAttrs::new()
+        }
     }
 }
 
@@ -296,10 +308,7 @@ impl CollectBytes for Node {
         match &self.kind {
             NodeKind::Leaf(LeafNode::RawBytes(bytes)) => f(bytes),
 
-            NodeKind::Leaf(
-                LeafNode::Text(text) | 
-                LeafNode::InlineEquation(text)
-            ) => f(text.as_bytes()),
+            NodeKind::Leaf(LeafNode::Text(text)) => f(text.as_bytes()),
 
             NodeKind::Env(env_node) => env_node.collect_bytes(f)?,
 

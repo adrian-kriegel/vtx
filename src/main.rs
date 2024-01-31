@@ -1,10 +1,6 @@
 
 use vtx::document::CollectBytes;
 use vtx::parse::*;
-use vtx::plugins::katex::KatexPlugin;
-use vtx::plugins::html::HTMLPlugin;
-
-use vtx::transform::*;
 
 use std::io::Read;
 use std::io::Write;
@@ -17,7 +13,8 @@ fn main() {
 
     let (document, _) = parse(&src);
 
-    let transformed = transform(
+    /*
+    let document = transform(
         document,
         &mut vec![
             Box::new(TransformerOnce::new(HTMLPlugin)), 
@@ -25,11 +22,12 @@ fn main() {
         ],
         3
     ).unwrap();
+     */
 
     let mut write = |bytes :&_| {
         std::io::stdout().write(bytes).unwrap();
     };
 
-    transformed.collect_bytes(&mut write).unwrap();
+    document.collect_bytes(&mut write).unwrap();
 
 }

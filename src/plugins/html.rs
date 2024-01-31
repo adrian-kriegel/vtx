@@ -90,7 +90,7 @@ impl crate::transform::Transformer for HTMLPlugin {
                 let html = Node::new(
                     NodeKind::Env(
                         EnvNode::new_open(
-                            EnvNodeHeader::new_empty("html"), 
+                            EnvNodeHeader::new_default("html"), 
                             html_children
                         )
                     ),

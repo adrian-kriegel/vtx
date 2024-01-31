@@ -70,7 +70,7 @@ impl KatexPlugin {
         &self, 
         id : NodeId,
         math : &str,
-        inline : bool
+        kind : &EquationKind
     ) -> Node {
 
         // TODO: replace with html node
@@ -78,7 +78,10 @@ impl KatexPlugin {
         let element_id = format!("katex-equation-{}", id);
         let text = format!(
             "<span class=\"{}\" id=\"{element_id}\" /><script>katex.render({}, document.getElementById(\"{element_id}\"));</script>",
-            if inline { &self.render_settings.inline_class_name } else { &self.render_settings.block_class_name },
+            match kind { 
+                EquationKind::Inline => &self.render_settings.inline_class_name,
+                EquationKind::Block => &self.render_settings.block_class_name 
+            },
             serde_json::to_string(math).unwrap()
         );
 
@@ -110,15 +113,11 @@ impl Transformer for KatexPlugin {
                 node, 
                 self.resource_nodes(),
             ),
-            // match inline equations
-            NodeKind::Leaf(LeafNode::InlineEquation(text)) => Action::Replace(
-                self.transform_equation(node.id, &text, true)
-            ),
-            // match block equations
+            // match equations
             NodeKind::Env(
                 EnvNode{
                     header: EnvNodeHeader{ 
-                        kind: EnvNodeHeaderKind::Eq, 
+                        kind: EnvNodeHeaderKind::Eq(equation_kind), 
                         attrs: _, 
                         meta_attrs: _
                     }, 
@@ -131,7 +130,7 @@ impl Transformer for KatexPlugin {
 
                 if let NodeKind::Leaf(LeafNode::Text(text)) = &child.kind {
                     Action::Replace(
-                        self.transform_equation(node.id, &text, true)
+                        self.transform_equation(node.id, &text, equation_kind)
                     )
                 } else {
                     Action::Remove
