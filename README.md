@@ -47,7 +47,7 @@ Another equation:
 
 ## Roadmap
 
-- Make the intermediate format XML/HTML compatible.
+- Make the intermediate format HTML/XML compatible. There is a transformer that takes the current intermediate format and turns it into HTML (including rendering equations), but I would like the intermediate format itself to be XML compatible.
 - Create a web renderer (I wrote one for Next.js but would like a framework-agnostic one).
 - Create a pagination engine that would allow for producing PDF files.
 
