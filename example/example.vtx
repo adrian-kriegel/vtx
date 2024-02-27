@@ -1,7 +1,10 @@
+# Heading
 
-# Example
+## Second Level Heading
 
-This is an example file $e=mc^2$
+This is an example file with example equations: $e=mc^2$
+
+Another equation: 
 
 <Eq>
     \nu Te \mathcal{X}
