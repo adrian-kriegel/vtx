@@ -47,11 +47,11 @@ impl Action {
 
 pub type TransformResult = Result<Action, TransformError>;
 
-pub trait Transformer {
+pub trait Visitor {
     //
     // Called when entering a node, before entering the children.
     //
-    fn transform(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node) -> TransformResult {
         Ok(Action::keep(node))
     }
 
@@ -64,28 +64,28 @@ pub trait Transformer {
     }
 }
 
-pub struct TransformerOnce<T : Transformer> {
+pub struct TransformerOnce<T : Visitor> {
 
     transformer: T,
 
     visited: HashSet<NodeId>
 }
 
-impl<T: Transformer> Transformer for TransformerOnce<T> {
+impl<T: Visitor> Visitor for TransformerOnce<T> {
 
-    fn transform(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node) -> TransformResult {
 
         if self.visited.contains(&node.id) {
             Ok(Action::keep(node))
         } else {
             self.visited.insert(node.id);
-            self.transformer.transform(node)
+            self.transformer.enter(node)
         }
     }
 
 }
 
-impl<T : Transformer> TransformerOnce<T> {
+impl<T : Visitor> TransformerOnce<T> {
 
     pub fn new(transformer : T) -> Self {
         Self {
@@ -135,10 +135,10 @@ impl Action {
 
 fn transform_node_single_pass(
     node : Node,
-    transformer : &mut Box<dyn Transformer>
+    transformer : &mut Box<dyn Visitor>
 ) -> TransformResult {
 
-    let transform_action = transformer.transform(node)?;
+    let transform_action = transformer.enter(node)?;
 
     match &transform_action.kind {
         ActionKind::Remove => return Ok(transform_action),
@@ -193,7 +193,7 @@ fn transform_node_single_pass(
 /// 
 pub fn transform(
     node : Node,
-    transformers : &mut Vec<Box<dyn Transformer>>,
+    transformers : &mut Vec<Box<dyn Visitor>>,
     max_passes : u32
 ) -> Result<Node, TransformError> {
 
@@ -232,9 +232,9 @@ pub fn transform(
 pub struct DefaultTransformer;
 
 // default transformer that is always active
-impl Transformer for DefaultTransformer {
+impl Visitor for DefaultTransformer {
 
-    fn transform(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node) -> TransformResult {
 
         match &node.kind {
             NodeKind::Leaf(LeafNode::Comment(_)) => Ok(Action::remove(node)),
@@ -251,9 +251,9 @@ mod test {
     struct EquationTransformer;
 
     // puts any equations into a <pre> tag
-    impl Transformer for EquationTransformer {
+    impl Visitor for EquationTransformer {
 
-        fn transform(&mut self, node : Node) -> TransformResult {
+        fn enter(&mut self, node : Node) -> TransformResult {
 
             match &node.kind {
                 // match equations

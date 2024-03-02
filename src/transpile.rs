@@ -1,13 +1,13 @@
 
 
 use crate::document::*;
-use crate::transform::*;
+use crate::visitor::*;
 use crate::error::*;
 use crate::parse::*;
 
 pub fn transpile<'a>(
     src : &'a str,
-    transformers : &mut Vec<Box<dyn Transformer>>
+    transformers : &mut Vec<Box<dyn Visitor>>
 ) -> Result<Node, Error<'a>> {
 
     let (document, _) = parse(src);
