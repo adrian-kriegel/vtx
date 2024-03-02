@@ -1,8 +1,6 @@
 
 use crate::{visit::{Visitor, Action}, document::*};
 
-use super::html;
-
 struct ResourcesHosted{
     script_src: String,
     style_src: String,
@@ -21,6 +19,63 @@ pub struct KatexPlugin {
     resources: Resources,
     render_settings: RenderSettings
 }
+
+
+pub fn element(
+    name : &str, 
+    children : Vec<Node>, 
+    attrs : EnvNodeAttrs,
+    position : &NodePosition
+) -> Node {
+    Node::new(
+        NodeKind::Env(
+            EnvNode::new_open(
+                EnvNodeHeader::new(name, attrs), 
+                children
+            )
+        ),
+        position.clone()
+    )
+}
+
+pub fn empty_element(name : &str, position : &NodePosition) -> Node {
+    element(name, Vec::new(), EnvNodeAttrs::new(), position)
+}
+
+pub fn script(src : &str, position : &NodePosition, mut attrs : EnvNodeAttrs) -> Node {
+
+    attrs.insert("src".to_string(), Some(src.to_string()));
+
+    Node::new(
+        NodeKind::Env(
+            EnvNode::new_self_closing(
+                EnvNodeHeader::new(
+                    "script",
+                    attrs
+                )
+            )
+        ),
+        position.clone()
+    )
+}
+
+pub fn style_sheet(href : &str, position : &NodePosition) -> Node {
+    Node::new(
+        NodeKind::Env(
+            EnvNode::new_self_closing(
+                EnvNodeHeader::new(
+                    "link",
+                    EnvNodeAttrs::from([
+                        ("href".to_string(), Some(href.to_string())),
+                        ("rel".to_string(), Some("stylesheet".to_string()))
+                    ])
+                )
+            )
+        ),
+        position.clone()
+    )
+}
+
 
 impl KatexPlugin {
 
@@ -51,8 +106,8 @@ impl ResourcesHosted {
         ]);
 
         vec![
-            html::script(&self.script_src, &NodePosition::Inserted, script_attrs),
-            html::style_sheet(&self.style_src, &NodePosition::Inserted),
+            script(&self.script_src, &NodePosition::Inserted, script_attrs),
+            style_sheet(&self.style_src, &NodePosition::Inserted),
         ]
     }
 
