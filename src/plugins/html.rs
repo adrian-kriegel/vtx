@@ -1,6 +1,6 @@
 
 use crate::document::*;
-use crate::visitor::Action;
+use crate::visit::Action;
 
 pub struct HTMLPlugin;
 
@@ -60,10 +60,10 @@ pub fn style_sheet(href : &str, position : &NodePosition) -> Node {
 }
 
 
-impl crate::visitor::Visitor for HTMLPlugin {
+impl crate::visit::Visitor for HTMLPlugin {
 
     fn enter(&mut self, node : Node) 
-    -> crate::visitor::TransformResult {
+    -> crate::visit::TransformResult {
         
         match node {
             Node{ 
@@ -128,7 +128,7 @@ impl crate::visitor::Visitor for HTMLPlugin {
 
 #[cfg(test)]
 mod test {
-    use crate::{parse::parse, visitor};
+    use crate::{parse::parse, visit};
     use super::*;
 
     #[test]
@@ -138,7 +138,7 @@ mod test {
 
         let (doc, _) = parse(src);
 
-        let _doc = visitor::transform(
+        let _doc = visit::transform(
             doc, 
             &mut vec![Box::new(HTMLPlugin)],
             1

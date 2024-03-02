@@ -1,7 +1,7 @@
 
 
 use crate::document::*;
-use crate::visitor::*;
+use crate::visit::*;
 use crate::error::*;
 use crate::parse::*;
 

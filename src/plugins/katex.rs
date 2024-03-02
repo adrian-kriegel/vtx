@@ -1,5 +1,5 @@
 
-use crate::{visitor::{Visitor, Action}, document::*};
+use crate::{visit::{Visitor, Action}, document::*};
 
 use super::html;
 
@@ -97,7 +97,7 @@ impl KatexPlugin {
 impl Visitor for KatexPlugin {
 
     fn enter(&mut self, node : Node) 
-    -> crate::visitor::TransformResult {
+    -> crate::visit::TransformResult {
 
         let action = match &node.kind {
             NodeKind::Env(

@@ -1,5 +1,5 @@
 
-use crate::{visitor::TransformError, document::EmitError, parse_error::ParseError};
+use crate::{visit::TransformError, document::EmitError, parse_error::ParseError};
 
 pub enum ErrorKind<'a> {
     Parse(ParseError),
