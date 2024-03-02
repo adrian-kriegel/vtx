@@ -1,9 +1,14 @@
 
-use vtx::document::CollectBytes;
 use vtx::parse::*;
+use vtx::plugins::html_emit::HTMLEmitter;
+use vtx::visit::transform;
+use vtx::visit::TransformerOnce;
 
 use std::io::Read;
-use std::io::Write;
+
+fn stdout_collector(s : &str) {
+    print!("{}", s);
+}
 
 fn main() {
 
@@ -24,10 +29,8 @@ fn main() {
     ).unwrap();
      */
 
-    let mut write = |bytes :&_| {
-        std::io::stdout().write(bytes).unwrap();
-    };
-
-    document.collect_bytes(&mut write).unwrap();
+    let _ = transform(document, &mut vec![
+        Box::new(TransformerOnce::new(HTMLEmitter{ collector: stdout_collector })),
+    ], 1);
 
 }

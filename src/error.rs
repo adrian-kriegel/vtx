@@ -1,15 +1,14 @@
 
-use crate::{visit::TransformError, document::EmitError, parse_error::ParseError};
+use crate::{visit::VisitError, parse_error::ParseError};
 
-pub enum ErrorKind<'a> {
+pub enum ErrorKind {
     Parse(ParseError),
-    Transform(TransformError),
-    Emit(EmitError<'a>)
+    Transform(VisitError)
 }
 
 pub struct Error<'a> {
     src: &'a str,
-    kind: ErrorKind<'a>
+    kind: ErrorKind
 }
 
 impl<'a> Error<'a> {
@@ -21,16 +20,9 @@ impl<'a> Error<'a> {
         }
     }
 
-    pub fn transform(e : TransformError, src : &'a str) -> Error<'a> {
+    pub fn transform(e : VisitError, src : &'a str) -> Error<'a> {
         Error {
             kind: ErrorKind::Transform(e),
-            src,
-        }
-    }
-
-    pub fn emit(e : EmitError<'a>, src : &'a str) -> Error<'a> {
-        Error {
-            kind: ErrorKind::Emit(e),
             src,
         }
     }

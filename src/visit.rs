@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use crate::document::*;
 
 #[derive(Debug)]
-pub enum TransformError {
+pub enum VisitError {
     Unknown(String),
     RootRemoved,
     MaxIterationsReached,
@@ -45,7 +45,7 @@ impl Action {
     }
 }
 
-pub type TransformResult = Result<Action, TransformError>;
+pub type TransformResult = Result<Action, VisitError>;
 
 pub trait Visitor {
     //
@@ -59,7 +59,7 @@ pub trait Visitor {
     // Called when leaving a node, after entering all children. 
     // The node passed to leave() is the transformed node, including its children. 
     //
-    fn leave(&mut self, _node : &Node) -> () {
+    fn leave(&mut self, _node : &Node) {
         
     }
 }
@@ -78,8 +78,14 @@ impl<T: Visitor> Visitor for TransformerOnce<T> {
         if self.visited.contains(&node.id) {
             Ok(Action::keep(node))
         } else {
-            self.visited.insert(node.id);
             self.transformer.enter(node)
+        }
+    }
+
+    fn leave(&mut self, node : &Node) {
+        if !self.visited.contains(&node.id) {
+            self.visited.insert(node.id);
+            self.transformer.leave(node)
         }
     }
 
@@ -158,7 +164,7 @@ fn transform_node_single_pass(
             let children = children
                 .into_iter()
                 .map(|child| transform_node_single_pass(child, transformer))
-                .collect::<Result<Vec<Action>, TransformError>>()?
+                .collect::<Result<Vec<Action>, VisitError>>()?
                 .into_iter()
                 // remove children whose transform returned ActionKind::remove
                 .filter(
@@ -195,7 +201,7 @@ pub fn transform(
     node : Node,
     transformers : &mut Vec<Box<dyn Visitor>>,
     max_passes : u32
-) -> Result<Node, TransformError> {
+) -> Result<Node, VisitError> {
 
     let mut action = Action::replace(node);
 
@@ -209,7 +215,7 @@ pub fn transform(
                     action.node, 
                     transformer
                 )?,
-                ActionKind::Remove => return Err(TransformError::RootRemoved),
+                ActionKind::Remove => return Err(VisitError::RootRemoved),
             }
 
         }
@@ -222,7 +228,7 @@ pub fn transform(
                 iterations += 1;
 
                 if iterations > max_passes {
-                    return Err(TransformError::MaxIterationsReached)
+                    return Err(VisitError::MaxIterationsReached)
                 }
             }
         }
@@ -333,9 +339,9 @@ mod test {
             collected_bytes.extend_from_slice(bytes);
         };
 
-        document.collect_bytes(&mut collect_closure).unwrap();
+        // document.collect_bytes(&mut collect_closure).unwrap();
 
-        println!("Result: \n{}", std::str::from_utf8(collected_bytes.as_slice()).unwrap());
+        // println!("Result: \n{}", std::str::from_utf8(collected_bytes.as_slice()).unwrap());
 
     }
 

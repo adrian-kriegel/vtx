@@ -74,20 +74,6 @@ pub struct Node {
     pub position: NodePosition,
 }
 
-
-#[derive(Debug)]
-pub enum EmitError<'a> {
-    NodeNotTransformed(&'a Node)
-}
-
-pub trait CollectBytes {
-
-    fn collect_bytes<F>(&self, f : &mut F) 
-    -> Result<(), EmitError> 
-    where F : FnMut(&[u8]);
-
-}
-
 impl EnvNode {
 
     /** Create new self closing tag. */
@@ -113,49 +99,7 @@ impl EnvNode {
     }
 }
 
-impl CollectBytes for EnvNode {
 
-    fn collect_bytes<F>(&self, f : &mut F) -> Result<(), EmitError>
-    where F : FnMut(&[u8]) {
-
-        self.header.collect_bytes(f)?;
-
-        if let EnvNodeKind::Open(children) = &self.kind {
-            for child in children {
-                child.collect_bytes::<F>(f)?;
-            }
-        }
-
-        f(self.header.kind.get_closing_string().as_bytes());
-
-        Ok(())
-    }
-}
-
-impl CollectBytes for EnvNodeAttrs {
-
-    fn collect_bytes<F>(&self, f : &mut F) -> Result<(), EmitError>
-    where F : FnMut(&[u8]) {
-
-        for (key, value) in self {
-
-            f(key.as_bytes());
-
-            if let Some(value) = value  {
-                f(&[b'=', b'"']);
-                f(value.as_bytes());
-                f(&[b'"', b' ']);
-            } else {
-                f(&[b' ']);
-            }
-
-        }
-
-        Ok(())
-
-    }
-
-}
 
 impl EnvNodeMetaAttrs {
 
@@ -204,7 +148,7 @@ impl EnvNodeHeaderKind {
 
 impl EnvNodeHeader {
 
-    /** Create new empty header with the specified nae */
+    /** Create new empty header with the specified name */
     pub fn new(parsed_name : &str, attrs : EnvNodeAttrs) -> Self {
 
         let kind = EnvNodeHeaderKind::new(parsed_name);
@@ -226,34 +170,6 @@ impl EnvNodeHeader {
             "Eq" => EnvNodeAttrs::from([("block".to_string(), None)]),
             _ => EnvNodeAttrs::new()
         }
-    }
-}
-
-impl CollectBytes for EnvNodeHeader {
-
-    fn collect_bytes<F>(&self, f : &mut F) 
-    -> Result<(), EmitError> 
-    where F : FnMut(&[u8]) {
-        
-        match self.kind {
-            EnvNodeHeaderKind::Module => {},
-            _ => {
-                f(&[b'<']);
-                f(self.kind.get_name().as_bytes());
-
-                if !self.attrs.is_empty() {
-
-                    f(&[b' ']);
-
-                    self.attrs.collect_bytes(f)?;
-
-                }
-
-                f(&[b'>']);
-            }
-        }
-        
-        Ok(())
     }
 }
 
@@ -296,26 +212,6 @@ impl NodeKind {
                 }
             }
         )
-    }
-
-}
-
-impl CollectBytes for Node {
-
-    fn collect_bytes<F>(&self, f : &mut F) -> Result<(), EmitError>
-    where F : FnMut(&[u8]) {
-
-        match &self.kind {
-            NodeKind::Leaf(LeafNode::RawBytes(bytes)) => f(bytes),
-
-            NodeKind::Leaf(LeafNode::Text(text)) => f(text.as_bytes()),
-
-            NodeKind::Env(env_node) => env_node.collect_bytes(f)?,
-
-            _ => Err(EmitError::NodeNotTransformed(self))?,
-        }
-
-        Ok(())
     }
 
 }
