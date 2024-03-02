@@ -59,6 +59,8 @@ pub enum TokenKind{
     Whitespace,
     EndOfLine,
     EndOfModule,
+    DollarBrace,
+    RightBrace,
     Dollar,
     Equals,
     Quote,
@@ -70,6 +72,7 @@ pub enum TokenKind{
     Math,
     EnvName,
     AttrName,
+    VariableName,
     StringLiteral,
     Error(ParseError)
 }
@@ -240,6 +243,13 @@ impl<'a> Parser<'a> {
             TokenKind::EndOfModule => (self.remaining.len() == 1)
                 .then(|| ""),
 
+
+            TokenKind::DollarBrace => self.remaining.starts_with("${")
+                .then(|| &self.remaining[..2]),
+
+            TokenKind::RightBrace => (bytes[0] == b'}')
+                .then(|| &self.remaining[..1]),
+
             TokenKind::Dollar => (bytes[0] == b'$' )
                 .then(|| &self.remaining[..1]),
 
@@ -281,6 +291,7 @@ impl<'a> Parser<'a> {
             TokenKind::AttrName | 
             TokenKind::CommentText |
             TokenKind::StringLiteral |
+            TokenKind::VariableName |
             TokenKind::Error(_) => unreachable!(
                 "Cannot use non-matchable token for matching."
             ),
@@ -448,6 +459,19 @@ impl<'a> Parser<'a> {
         NodeKind::heading(level, contents)
     }
 
+    ///
+    /// Parse a variable expression terminated by '}'
+    ///
+    pub fn parse_variable_expression(&mut self) -> String {
+
+        let (token, _) = self.seek_to_and_capture(
+            TokenKind::VariableName,
+            &[TokenKind::RightBrace]
+        );
+
+        self.get_captured_value(token).to_string()
+    }
+
     /// 
     /// Parse children of env node terminated by closing_tag.
     /// 
@@ -465,6 +489,7 @@ impl<'a> Parser<'a> {
                 &[
                     closing_tag.clone(), 
                     TokenKind::EnvOpen, 
+                    TokenKind::DollarBrace,
                     TokenKind::Dollar,
                     TokenKind::CommentOpen,
                     TokenKind::Hash
@@ -487,6 +512,10 @@ impl<'a> Parser<'a> {
                 TokenKind::Hash => self.parse_heading(),
 
                 TokenKind::EnvOpen => NodeKind::Env(self.parse_env_from_name()),
+
+                TokenKind::DollarBrace => NodeKind::Leaf(LeafNode::VariableExpression(
+                    self.parse_variable_expression()
+                )),
 
                 TokenKind::Dollar => {
 

@@ -1,6 +1,6 @@
-# Heading
+# Example
 
-## Second Level Heading
+## Equations 
 
 This is an example file with example equations: $e=mc^2$
 
@@ -9,3 +9,11 @@ Another equation:
 <Eq>
     \nu Te \mathcal{X}
 </Eq>
+
+There is an equation transformer for KaTeX which you can turn on. I decided to remove it from main because I find it more convenient to render equations using KaTeX in React.
+
+# Variables
+
+You can insert variables like this: ${myVariable}
+
+Variables only work in text right now. Variables are not supported in math or environment attributes.

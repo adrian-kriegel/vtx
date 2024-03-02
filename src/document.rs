@@ -3,13 +3,13 @@ use std::{collections::HashMap, sync::atomic::{AtomicUsize, Ordering}};
 
 use crate::parse::{ParserPosition, Token};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum EquationKind {
     Inline, 
     Block,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum EnvNodeHeaderKind {
     Eq(EquationKind),
     Code,
@@ -18,7 +18,7 @@ pub enum EnvNodeHeaderKind {
     Other(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EnvNodeMetaAttrs {
     /** Indicates that anything inside this environment will be parsed as text. */
     pub raw : bool
@@ -26,7 +26,7 @@ pub struct EnvNodeMetaAttrs {
 
 pub type EnvNodeAttrs = HashMap<String, Option<String>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EnvNodeHeader {
     pub kind: EnvNodeHeaderKind,
     pub attrs: EnvNodeAttrs,
@@ -34,26 +34,27 @@ pub struct EnvNodeHeader {
     pub meta_attrs: EnvNodeMetaAttrs,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum EnvNodeKind {
     Open(Vec<Node>),
     SelfClosing,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EnvNode {
     pub kind: EnvNodeKind,
     pub header: EnvNodeHeader,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LeafNode {
     Text(String),
+    VariableExpression(String),
     Comment(String),
     RawBytes(Vec<u8>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeKind{
     Leaf(LeafNode),
     Env(EnvNode),
@@ -67,7 +68,7 @@ pub enum NodePosition {
     Inserted
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Node {
     pub id : NodeId,
     pub kind: NodeKind,
