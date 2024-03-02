@@ -10,18 +10,58 @@ pub enum TransformError {
     MaxIterationsReached,
 }
 
-pub enum Action {
-    Keep(Node),
-    Replace(Node),
+
+pub enum ActionKind {
     Remove,
+    Replace,
+    Keep,
+}
+
+pub struct Action {
+    kind: ActionKind,
+    node: Node,
+}
+
+impl Action {
+    pub fn keep(node: Node) -> Action {
+        Action {
+            kind: ActionKind::Keep,
+            node,
+        }
+    }
+
+    pub fn replace(node: Node) -> Action {
+        Action {
+            kind: ActionKind::Replace,
+            node,
+        }
+    }
+
+    pub fn remove(node: Node) -> Action {
+        Action {
+            kind: ActionKind::Remove,
+            node,
+        }
+    }
 }
 
 pub type TransformResult = Result<Action, TransformError>;
 
 pub trait Transformer {
-    
-    fn transform(&mut self, node : Node) -> TransformResult;
-    
+    //
+    // Called when entering a node, before entering the children.
+    //
+    fn transform(&mut self, node : Node) -> TransformResult {
+        Ok(Action::keep(node))
+    }
+
+    //
+    // Called when leaving a node, after entering all children. 
+    // The node passed to leave() is the transformed node, including its children. 
+    //
+    fn leave(&mut self, _node : &Node) -> () {
+        
+    }
 }
 
 pub struct TransformerOnce<T : Transformer> {
@@ -36,7 +76,7 @@ impl<T: Transformer> Transformer for TransformerOnce<T> {
     fn transform(&mut self, node : Node) -> TransformResult {
 
         if self.visited.contains(&node.id) {
-            Ok(Action::Keep(node))
+            Ok(Action::keep(node))
         } else {
             self.visited.insert(node.id);
             self.transformer.transform(node)
@@ -73,7 +113,7 @@ impl Action {
             } => {
                 old_children.append(&mut children);
 
-                Action::Replace(
+                Action::replace(
                     Node {
                         kind: {
                             NodeKind::Env(
@@ -87,7 +127,7 @@ impl Action {
                     }
                 )
             }
-            _ => Action::Keep(node)
+            _ => Action::keep(node)
         }
     }
 
@@ -100,23 +140,18 @@ fn transform_node_single_pass(
 
     let transform_action = transformer.transform(node)?;
 
-    match transform_action {
+    match &transform_action.kind {
+        ActionKind::Remove => return Ok(transform_action),
+        _ => ()
+    }
+
+    let transform_action = match transform_action.node {
         // TODO: tidy up NodeKind: split into Leaf (no children) and NonLeaf (with children) to avoid this
-        // TODO: also split up actions into WithNode and WithoutNode or similar
-        Action::Keep(
-            Node { 
-                id,
-                kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
-                position
-            }
-        ) | 
-        Action::Replace(
-            Node { 
-                id,
-                kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
-                position
-            }
-        ) => {
+        Node { 
+            id,
+            kind: NodeKind::Env(EnvNode{ header, kind: EnvNodeKind::Open(children) }), 
+            position
+        } => {
             
             let mut has_changed = false;
 
@@ -125,17 +160,15 @@ fn transform_node_single_pass(
                 .map(|child| transform_node_single_pass(child, transformer))
                 .collect::<Result<Vec<Action>, TransformError>>()?
                 .into_iter()
+                // remove children whose transform returned ActionKind::remove
                 .filter(
-                    |action| match action { 
-                        Action::Remove => { has_changed = true; false }, 
-                        Action::Replace(_) => { has_changed = true; true }, 
-                        Action::Keep(_) => { true }
+                    |action| match &action.kind { 
+                        ActionKind::Remove => { has_changed = true; false }, 
+                        ActionKind::Replace => { has_changed = true; true }, 
+                        ActionKind::Keep => { true }
                     }
                 )
-                .map(|action| match action {
-                    Action::Replace(node) | Action::Keep(node) => { node },
-                    _ => unreachable!()
-                })
+                .map(|action| action.node)
                 .collect::<Vec<Node>>();
 
             let node = Node {
@@ -144,14 +177,18 @@ fn transform_node_single_pass(
                 position
             };
         
-            Ok(if has_changed { Action::Replace(node) } else { Action::Keep(node) })
+            if has_changed { Action::replace(node) } else { Action::keep(node) }
         },
-        _ => Ok(transform_action)
-    }
+        _ => transform_action
+    };
+
+    transformer.leave(&transform_action.node);
+
+    Ok(transform_action)
 }
 
 ///
-/// Transforms the tree until all transformers return Action::Keep
+/// Transforms the tree until all transformers return Action::keep
 /// or max_passes is reached.
 /// 
 pub fn transform(
@@ -160,26 +197,26 @@ pub fn transform(
     max_passes : u32
 ) -> Result<Node, TransformError> {
 
-    let mut action = Action::Replace(node);
+    let mut action = Action::replace(node);
 
     let mut iterations : u32 = 0;
 
     loop {
         for transformer in transformers.iter_mut() {
             
-            action = match action {
-                Action::Keep(node) | Action::Replace(node) => transform_node_single_pass(
-                    node, 
+            action = match &action.kind {
+                ActionKind::Keep | ActionKind::Replace => transform_node_single_pass(
+                    action.node, 
                     transformer
                 )?,
-                Action::Remove => return Err(TransformError::RootRemoved),
+                ActionKind::Remove => return Err(TransformError::RootRemoved),
             }
 
         }
 
-        match action  {
-            Action::Keep(node) => {
-                return Ok(node)
+        match &action.kind  {
+            ActionKind::Keep => {
+                return Ok(action.node)
             },
             _ => {
                 iterations += 1;
@@ -200,8 +237,8 @@ impl Transformer for DefaultTransformer {
     fn transform(&mut self, node : Node) -> TransformResult {
 
         match &node.kind {
-            NodeKind::Leaf(LeafNode::Comment(_)) => Ok(Action::Remove),
-            _ => Ok(Action::Keep(node))
+            NodeKind::Leaf(LeafNode::Comment(_)) => Ok(Action::remove(node)),
+            _ => Ok(Action::keep(node))
         }
 
     }
@@ -245,12 +282,12 @@ mod test {
                             ..node
                         };
 
-                        Ok(Action::Replace(raw_node))
+                        Ok(Action::replace(raw_node))
                     } else {
-                        Ok(Action::Remove)
+                        Ok(Action::remove(node))
                     }
                 },
-                _ => Ok(Action::Keep(node))
+                _ => Ok(Action::keep(node))
             }
 
         }

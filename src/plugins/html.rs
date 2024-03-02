@@ -102,7 +102,7 @@ impl crate::transform::Transformer for HTMLPlugin {
                     NodePosition::Inserted
                 );
 
-                Ok(Action::Replace(Node {
+                Ok(Action::replace(Node {
                     id,
                     kind: NodeKind::Env(
                         EnvNode{ 
@@ -120,7 +120,7 @@ impl crate::transform::Transformer for HTMLPlugin {
                     position,
                 }))
             },
-            _ => Ok(Action::Keep(node)),
+            _ => Ok(Action::keep(node)),
         }
 
     }

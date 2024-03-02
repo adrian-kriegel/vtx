@@ -129,14 +129,14 @@ impl Transformer for KatexPlugin {
                 let child = children.get(0).unwrap();
 
                 if let NodeKind::Leaf(LeafNode::Text(text)) = &child.kind {
-                    Action::Replace(
+                    Action::replace(
                         self.transform_equation(node.id, &text, equation_kind)
                     )
                 } else {
-                    Action::Remove
+                    Action::remove(node)
                 }
             }
-            _ => Action::Keep(node),
+            _ => Action::replace(node),
         };
 
         Ok(action)
