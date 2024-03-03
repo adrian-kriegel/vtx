@@ -18,7 +18,12 @@ fn collect_env_attrs(attrs : &EnvNodeAttrs, f: &fn(&str)) {
 
         if let Some(value) = value  {
             f("=\"");
-            f(&value);
+            
+            match &value.kind {
+                NodeKind::Leaf(LeafNode::Text(text)) => f(&text),
+                _ =>  todo!("Attr values must be text nodes.")
+            }
+
             f("\" ");
         } else {
             f(" ");
@@ -47,7 +52,7 @@ fn collect_env_header(header : &EnvNodeHeader, f: &fn(&str)) {
 
 impl Visitor for HTMLEmitter {
 
-    fn enter(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node, _parent_id : Option<NodeId>) -> TransformResult {
 
         match &node.kind {
             NodeKind::Env(node) => 
@@ -65,7 +70,7 @@ impl Visitor for HTMLEmitter {
 
     }
 
-    fn leave(&mut self, node : &Node) {
+    fn leave(&mut self, node : &Node, _original_id : NodeId, _parent_id : Option<NodeId>) {
 
         match &node.kind {
             NodeKind::Env(node) => 

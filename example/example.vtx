@@ -2,18 +2,27 @@
 
 ## Equations 
 
-This is an example file with example equations: $e=mc^2$
-
-Another equation: 
+This is an example file. While you can use equations, I have decided to remove the KaTeX transformer in favor of implementing such things as components.
 
 <Eq>
     \nu Te \mathcal{X}
 </Eq>
 
-There is an equation transformer for KaTeX which you can turn on. I decided to remove it from main because I find it more convenient to render equations using KaTeX in React.
-
 # Variables
 
-You can insert variables like this: ${myVariable}
+You can define variables within environents like this:
+<var myVariable1="Value 1" />
+<var myVariable2>Value 2</var>
+And then use ${myVariable1} like this. Or like this:
+
+${myVariable2}
+
+Variables are scoped within environments. This means you can set different values at different levels without changing the variable in higher scopes.
+
+<div>
+    <var myVariable1="Value 3" />
+    ${myVariable1}
+</div>
+${myVariable1}
 
 Variables only work in text right now. Variables are not supported in math or environment attributes.

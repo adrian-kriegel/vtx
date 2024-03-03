@@ -24,7 +24,7 @@ pub struct EnvNodeMetaAttrs {
     pub raw : bool
 }
 
-pub type EnvNodeAttrs = HashMap<String, Option<String>>;
+pub type EnvNodeAttrs = HashMap<String, Option<Node>>;
 
 #[derive(Debug, Clone)]
 pub struct EnvNodeHeader {
@@ -46,12 +46,14 @@ pub struct EnvNode {
     pub header: EnvNodeHeader,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LeafNode {
     Text(String),
     VariableExpression(String),
     Comment(String),
-    RawBytes(Vec<u8>)
+    RawBytes(Vec<u8>),
+    // TODO: better error representation
+    Error(String)
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +75,26 @@ pub struct Node {
     pub id : NodeId,
     pub kind: NodeKind,
     pub position: NodePosition,
+}
+
+// TODO: This is only required in order to compare attrs in testing. Remove
+impl PartialEq for Node {
+
+    fn eq(&self, other: &Self) -> bool {
+        // TODO
+        match &self.kind {
+            NodeKind::Leaf(LeafNode::Text(text)) => {
+                match &other.kind {
+                    NodeKind::Leaf(LeafNode::Text(other_text)) => {
+                        other_text == text
+                    },
+                    _ => false
+                }
+            },
+            _ => false,
+        }
+    }
+
 }
 
 impl EnvNode {
@@ -171,6 +193,25 @@ impl EnvNodeHeader {
             "Eq" => EnvNodeAttrs::from([("block".to_string(), None)]),
             _ => EnvNodeAttrs::new()
         }
+    }
+
+    pub fn generate_attrs(pairs : Vec<(&str,Option<&str>)>) -> EnvNodeAttrs {
+
+        let mut attrs = EnvNodeAttrs::new();
+
+        for (key, value) in pairs {
+            attrs.insert(
+                key.to_string(), 
+                value.map(|value| Node::new(
+                        NodeKind::Leaf(LeafNode::Text(value.to_string())),
+                    NodePosition::Inserted,
+                    )
+                )
+            );
+        }
+
+        return attrs;
+
     }
 }
 

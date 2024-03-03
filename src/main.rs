@@ -26,7 +26,7 @@ fn main() {
         ],
         1
     ).unwrap();
-
+    
     let _ = transform(document, &mut vec![
         Box::new(TransformerOnce::new(HTMLEmitter{ collector: stdout_collector })),
     ], 1);

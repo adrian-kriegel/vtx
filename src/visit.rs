@@ -51,15 +51,16 @@ pub trait Visitor {
     //
     // Called when entering a node, before entering the children.
     //
-    fn enter(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node, _parent_id : Option<NodeId>) -> TransformResult {
         Ok(Action::keep(node))
     }
 
     //
     // Called when leaving a node, after entering all children. 
-    // The node passed to leave() is the transformed node, including its children. 
+    // The node passed to leave() is the transformed node, including its children.
+    // The original_id is the id of the node that was initially entered. 
     //
-    fn leave(&mut self, _node : &Node) {
+    fn leave(&mut self, _node : &Node, _original_id : NodeId, _parent_id : Option<NodeId>) {
         
     }
 }
@@ -73,19 +74,19 @@ pub struct TransformerOnce<T : Visitor> {
 
 impl<T: Visitor> Visitor for TransformerOnce<T> {
 
-    fn enter(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node, parent_id : Option<NodeId>) -> TransformResult {
 
         if self.visited.contains(&node.id) {
             Ok(Action::keep(node))
         } else {
-            self.transformer.enter(node)
+            self.transformer.enter(node, parent_id)
         }
     }
 
-    fn leave(&mut self, node : &Node) {
-        if !self.visited.contains(&node.id) {
-            self.visited.insert(node.id);
-            self.transformer.leave(node)
+    fn leave(&mut self, node : &Node, original_id : NodeId, parent_id : Option<NodeId>) {
+        if !self.visited.contains(&original_id) {
+            self.visited.insert(original_id);
+            self.transformer.leave(node, original_id, parent_id)
         }
     }
 
@@ -141,15 +142,18 @@ impl Action {
 
 fn transform_node_single_pass(
     node : Node,
+    parent_id : Option<NodeId>,
     transformer : &mut Box<dyn Visitor>
 ) -> TransformResult {
 
-    let transform_action = transformer.enter(node)?;
+    let original_id = node.id;
+
+    let transform_action = transformer.enter(node, parent_id)?;
 
     match &transform_action.kind {
         ActionKind::Remove => return Ok(transform_action),
-        _ => ()
-    }
+        _ => {}
+    };
 
     let transform_action = match transform_action.node {
         // TODO: tidy up NodeKind: split into Leaf (no children) and NonLeaf (with children) to avoid this
@@ -163,7 +167,13 @@ fn transform_node_single_pass(
 
             let children = children
                 .into_iter()
-                .map(|child| transform_node_single_pass(child, transformer))
+                .map(
+                    |child| transform_node_single_pass(
+                        child,
+                        Some(id),
+                        transformer
+                    )
+                )
                 .collect::<Result<Vec<Action>, VisitError>>()?
                 .into_iter()
                 // remove children whose transform returned ActionKind::remove
@@ -182,13 +192,13 @@ fn transform_node_single_pass(
                 kind: NodeKind::Env(EnvNode::new_open(header, children)),
                 position
             };
-        
+
             if has_changed { Action::replace(node) } else { Action::keep(node) }
         },
         _ => transform_action
     };
 
-    transformer.leave(&transform_action.node);
+    transformer.leave(&transform_action.node, original_id, parent_id);
 
     Ok(transform_action)
 }
@@ -213,6 +223,7 @@ pub fn transform(
             action = match &action.kind {
                 ActionKind::Keep | ActionKind::Replace => transform_node_single_pass(
                     action.node, 
+                    None,
                     transformer
                 )?,
                 ActionKind::Remove => return Err(VisitError::RootRemoved),
@@ -240,7 +251,7 @@ pub struct DefaultTransformer;
 // default transformer that is always active
 impl Visitor for DefaultTransformer {
 
-    fn enter(&mut self, node : Node) -> TransformResult {
+    fn enter(&mut self, node : Node, _parent_id : Option<NodeId>) -> TransformResult {
 
         match &node.kind {
             NodeKind::Leaf(LeafNode::Comment(_)) => Ok(Action::remove(node)),
@@ -259,7 +270,7 @@ mod test {
     // puts any equations into a <pre> tag
     impl Visitor for EquationTransformer {
 
-        fn enter(&mut self, node : Node) -> TransformResult {
+        fn enter(&mut self, node : Node, parent_id : Option<NodeId>) -> TransformResult {
 
             match &node.kind {
                 // match equations

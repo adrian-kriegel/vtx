@@ -548,7 +548,15 @@ impl<'a> Parser<'a> {
                     LeafNode::Comment(self.parse_comment().to_string())
                 ),
 
-                _ => unreachable!(),
+                TokenKind::EndOfModule => {
+                    // TODO: parse error node
+                    panic!("Unexpected end of module.")
+                },
+
+                // token can only be one of the kinds passed to 
+                // seek_to_and_capture + EndOfModule, so this
+                // should not happen
+                _ => unreachable!()
             };
             
             children.push(Node::new(kind, NodePosition::Source(stop_position)));
@@ -608,9 +616,16 @@ impl<'a> Parser<'a> {
                         &[TokenKind::Quote]
                     );
 
-                    let value = self.get_captured_value(captured);
+                    // this is kind of ugly but required since seek_to_and_capture will not register empty strings as Text tokens...
+                    let fallback = Token {
+                        position: end_position.clone(),
+                        kind: TokenKind::Text,
+                        value: ""
+                    };
 
-                    attrs.insert(key, Some(value.to_string()));
+                    let value = captured.map(|c| self.get_token(c)).unwrap_or(&fallback);
+
+                    attrs.insert(key, Some(Node::new_text(value)));
 
                     // skip any whitespace after the value
                     self.try_parse_token(&TokenKind::Whitespace);
@@ -858,62 +873,62 @@ mod tests {
             ),
             (
                 "label=\"foo\"/>",
-                EnvNodeAttrs::from([
-                    ("label".to_string(), Some("foo".to_string())),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label", Some("foo")),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
             (
                 "label=\"foo\">",
-                EnvNodeAttrs::from([
-                    ("label".to_string(), Some("foo".to_string())),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label", Some("foo")),
                 ]),
                 TokenKind::RightAngle,
             ),
             (
                 "label=\"foo\"  bar=\"1\" >",
-                EnvNodeAttrs::from([
-                    ("label".to_string(),Some("foo".to_string())),
-                    ("bar".to_string(), Some("1".to_string())),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label",Some("foo")),
+                    ("bar", Some("1")),
                 ]),
                 TokenKind::RightAngle,
             ),
             (
                 "label=\"foo\" bar=\"1\">",
-                EnvNodeAttrs::from([
-                    ("label".to_string(),Some("foo".to_string())),
-                    ("bar".to_string(), Some("1".to_string())),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label",Some("foo")),
+                    ("bar", Some("1")),
                 ]),
                 TokenKind::RightAngle,
             ),
             (
                 "label=\"foo\"\n\tbar=\"1\"\n />",
-                EnvNodeAttrs::from([
-                    ("label".to_string(), Some("foo".to_string())),
-                    ("bar".to_string(), Some("1".to_string())),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label", Some("foo")),
+                    ("bar", Some("1")),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
             (
                 "some_attr />",
-                EnvNodeAttrs::from([
-                    ("some_attr".to_string(), None),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("some_attr", None),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
             (
                 "label=\"foo\" bar />",
-                EnvNodeAttrs::from([
-                    ("label".to_string(), Some("foo".to_string())),
-                    ("bar".to_string(), None),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label", Some("foo")),
+                    ("bar", None),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
             (
                 "label=\"foo\" bar/>",
-                EnvNodeAttrs::from([
-                    ("label".to_string(), Some("foo".to_string())),
-                    ("bar".to_string(), None),
+                EnvNodeHeader::generate_attrs(vec![
+                    ("label", Some("foo")),
+                    ("bar", None),
                 ]),
                 TokenKind::EnvSelfClose,
             ),
