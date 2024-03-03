@@ -32,3 +32,24 @@ Variables are scoped within environments. This means you can set different value
 ${myVariable1}
 
 Variables only work in text right now. Variables are not supported in math or environment attributes.
+
+# Components 
+
+You can define re-usable components like this:
+
+<Component MyComponent>
+
+    # ${heading}
+
+    ${children}
+
+</Component>
+
+And use them afterwards:
+
+<MyComponent heading="Example 1">
+    Put anything inside here.
+</MyComponent>
+<MyComponent heading="Example 2">
+    Or something else the second time
+</MyComponent>

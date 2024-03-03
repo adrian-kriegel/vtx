@@ -7,7 +7,8 @@ pub struct HTMLEmitter {
     /// Called for every sub-string in the emitted HTML.
     /// Can be used to concatenate into a string or stream to a file or socket.
     /// 
-    pub collector: fn (&str)
+    pub collector: fn (&str),
+    pub debug: bool,
 }
 
 fn collect_env_attrs(attrs : &EnvNodeAttrs, f: &fn(&str)) {
@@ -61,6 +62,9 @@ impl Visitor for HTMLEmitter {
             }
 
             NodeKind::Leaf(LeafNode::Text(text)) => (self.collector)(&text),
+            kind if self.debug => {
+                dbg!(kind);
+            },
             _ => return Err(
                 VisitError::Unknown(
                     "Encountered a node which cannot be emitted as HTML.".to_string()

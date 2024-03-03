@@ -1,5 +1,7 @@
 
 use vtx::parse::*;
+use vtx::plugins::components::ComponentInsert;
+use vtx::plugins::components::ComponentRegister;
 use vtx::plugins::html_emit::HTMLEmitter;
 use vtx::plugins::cleanup::Cleanup;
 use vtx::plugins::variables::Variables;
@@ -24,13 +26,15 @@ fn main() {
         document,
         &mut vec![
             Box::new(TransformerOnce::new(Cleanup)),
+            Box::new(TransformerOnce::new(ComponentRegister)),
+            Box::new(TransformerOnce::new(ComponentInsert)),
             Box::new(TransformerOnce::new(Variables::new()))
         ],
         1
     ).unwrap();
     
     let _ = transform(document, &mut vec![
-        Box::new(TransformerOnce::new(HTMLEmitter{ collector: stdout_collector })),
+        Box::new(TransformerOnce::new(HTMLEmitter{ collector: stdout_collector, debug: true })),
     ], 1);
 
 }

@@ -1,5 +1,3 @@
-use std::mem::replace;
-
 ///
 /// Cleans up text and removes nodes that do not contribute to the contents of the document.
 /// These include empty lines at the start or end of env bodies.

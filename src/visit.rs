@@ -270,7 +270,7 @@ mod test {
     // puts any equations into a <pre> tag
     impl Visitor for EquationTransformer {
 
-        fn enter(&mut self, node : Node, parent_id : Option<NodeId>) -> TransformResult {
+        fn enter(&mut self, node : Node, _parent_id : Option<NodeId>) -> TransformResult {
 
             match &node.kind {
                 // match equations

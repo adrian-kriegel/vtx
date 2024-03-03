@@ -1,9 +1,7 @@
 
-use std::collections::vec_deque;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::str::Chars;
-use std::vec;
 
 use crate::document::*;
 use crate::parse_error::*;

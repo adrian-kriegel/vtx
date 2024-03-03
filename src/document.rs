@@ -72,11 +72,24 @@ pub enum NodePosition {
     Inserted
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Node {
     pub id : NodeId,
     pub kind: NodeKind,
     pub position: NodePosition,
+}
+
+// TODO: this isn't really great: the user would expect a cloned node to have the same id? 
+// but it is required for TransformerOnce to work...
+// --> change the way TransformerOnce works...
+impl Clone for Node {
+    fn clone(&self) -> Self {
+        Self { 
+            id: Node::generate_id(), 
+            kind: self.kind.clone(), 
+            position: self.position.clone()
+        }
+    }
 }
 
 // TODO: This is only required in order to compare attrs in testing. Remove
@@ -95,6 +108,35 @@ impl PartialEq for Node {
             },
             _ => false,
         }
+    }
+
+}
+
+impl NodeKind {
+
+    pub fn new_fragment(children: VecDeque<Node>) -> Self {
+        NodeKind::Env(
+            EnvNode {
+                kind: EnvNodeKind::Open(children),
+                header: EnvNodeHeader {
+                    kind: EnvNodeHeaderKind::Fragment,
+                    attrs: EnvNodeAttrs::new(),
+                    meta_attrs: EnvNodeMetaAttrs::new(&EnvNodeHeaderKind::Fragment)
+                }
+            }
+        )
+    }
+
+    pub fn new_variable_definition(name : &str, value : Node) -> Self {
+        NodeKind::Env(
+            EnvNode::new_open(
+                EnvNodeHeader::new(
+                    "var",
+                    HashMap::from([(name.to_string(), None)])
+                ),
+                VecDeque::from([value])
+            )
+        )
     }
 
 }
@@ -241,6 +283,14 @@ impl Node {
         
         NODE_ID_COUNTER.fetch_add(1, Ordering::Relaxed)
 
+    }
+
+    pub fn new_variable_definition(name : &str, value : Node) -> Self {
+        Node {
+            kind: NodeKind::new_variable_definition(name, value),
+            id: Node::generate_id(),
+            position: NodePosition::Inserted
+        }
     }
 }
 
