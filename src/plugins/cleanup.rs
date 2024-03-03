@@ -37,7 +37,7 @@ impl Visitor for Cleanup {
                     is_empty_text
                 );
 
-                let back_is_empty = children.front().map_or(
+                let back_is_empty = children.back().map_or(
                     false,
                     is_empty_text
                 );
@@ -47,7 +47,7 @@ impl Visitor for Cleanup {
                 }
 
                 if back_is_empty {
-                    children.pop_back();
+                    // children.pop_back();
                 }
 
                 let node = Node {
