@@ -1,4 +1,7 @@
 
+use std::collections::vec_deque;
+use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::str::Chars;
 use std::vec;
 
@@ -51,6 +54,8 @@ impl Copy for TokenHandle {}
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind{
     EnvOpen,
+    FragmentOpen,
+    FragmentClose,
     EnvClose(String),
     EnvSelfClose,
     RightAngle,
@@ -230,6 +235,12 @@ impl<'a> Parser<'a> {
                     (bytes[1] >= b'A' && bytes[1] <= b'Z')
                 )
             ).then(||&self.remaining[..1]),
+
+            TokenKind::FragmentOpen => self.remaining.starts_with("<>")
+                .then(||"<>"),
+
+            TokenKind::FragmentClose => self.remaining.starts_with("</>")
+                .then(||"</>"),
 
             TokenKind::Whitespace => {
                 let whitespace_len = self.remaining
@@ -478,16 +489,17 @@ impl<'a> Parser<'a> {
     pub fn parse_children(
         &mut self,
         closing_tag : TokenKind
-    ) -> Vec<Node> {
+    ) -> VecDeque<Node> {
 
-        let mut children = Vec::new();
+        let mut children = VecDeque::new();
         
         loop {
 
             let (text, stop_token) = self.seek_to_and_capture(
                 TokenKind::Text,
                 &[
-                    closing_tag.clone(), 
+                    closing_tag.clone(),
+                    TokenKind::FragmentOpen, 
                     TokenKind::EnvOpen, 
                     TokenKind::DollarBrace,
                     TokenKind::Dollar,
@@ -499,7 +511,7 @@ impl<'a> Parser<'a> {
             let stop_token = self.get_token(stop_token);
 
             if let Some(text) = text {
-                children.push(Node::new_text(self.get_token(text)))
+                children.push_back(Node::new_text(self.get_token(text)))
             }
 
             let stop_kind = stop_token.kind.clone();
@@ -510,6 +522,20 @@ impl<'a> Parser<'a> {
                 _ if stop_kind == closing_tag => break,
                 
                 TokenKind::Hash => self.parse_heading(),
+
+                TokenKind::FragmentOpen => {
+                    NodeKind::Env(
+                        EnvNode::new_open(
+                            EnvNodeHeader {
+                                kind: EnvNodeHeaderKind::Fragment,
+                                // TODO: Fragment should not have attrs
+                                attrs: HashMap::new(),
+                                meta_attrs: EnvNodeMetaAttrs::new(&EnvNodeHeaderKind::Fragment)
+                            },
+                            self.parse_children(TokenKind::FragmentClose),
+                        )
+                    )
+                },
 
                 TokenKind::EnvOpen => NodeKind::Env(self.parse_env_from_name()),
 
@@ -536,8 +562,8 @@ impl<'a> Parser<'a> {
                             }, 
                             kind: EnvNodeKind::Open(
                                 match math {
-                                    Some(token_handle) => vec![Node::new_text(self.get_token(token_handle))],
-                                    None => Vec::new()
+                                    Some(token_handle) => VecDeque::from([Node::new_text(self.get_token(token_handle))]),
+                                    None => VecDeque::new()
                                 }
                             ) 
                         }
@@ -559,7 +585,9 @@ impl<'a> Parser<'a> {
                 _ => unreachable!()
             };
             
-            children.push(Node::new(kind, NodePosition::Source(stop_position)));
+            children.push_back(
+                Node::new(kind, NodePosition::Source(stop_position))
+            );
         }
         
         children
@@ -723,9 +751,9 @@ impl<'a> Parser<'a> {
                     );
 
                     if let Some(text) = text {
-                        vec![Node::new_text(self.get_token(text))]
+                        VecDeque::from([Node::new_text(self.get_token(text))])
                     } else {
-                        Vec::new()
+                        VecDeque::new()
                     }
                 } else {
                     self.parse_children(TokenKind::new_env_close(&header.kind))

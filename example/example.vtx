@@ -13,6 +13,12 @@ This is an example file. While you can use equations, I have decided to remove t
 You can define variables within environents like this:
 <var myVariable1="Value 1" />
 <var myVariable2>Value 2</var>
+<var myVariable3>
+    <>
+        # Fragments
+        Define multiple values for variables using fragments.
+    </>
+</var>
 And then use ${myVariable1} like this. Or like this:
 
 ${myVariable2}

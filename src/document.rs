@@ -1,5 +1,5 @@
 
-use std::{collections::HashMap, sync::atomic::{AtomicUsize, Ordering}};
+use std::{collections::{HashMap, VecDeque}, sync::atomic::{AtomicUsize, Ordering}};
 
 use crate::parse::{ParserPosition, Token};
 
@@ -15,7 +15,9 @@ pub enum EnvNodeHeaderKind {
     Code,
     Module,
     Heading(u8),
-    Other(String)
+    Other(String),
+    // container for a list of child nodes
+    Fragment
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +38,7 @@ pub struct EnvNodeHeader {
 
 #[derive(Debug, Clone)]
 pub enum EnvNodeKind {
-    Open(Vec<Node>),
+    Open(VecDeque<Node>),
     SelfClosing,
 }
 
@@ -105,12 +107,12 @@ impl EnvNode {
     }
 
     /** Create new open tag. */
-    pub fn new_open(header : EnvNodeHeader, children: Vec<Node>) -> Self {
+    pub fn new_open(header : EnvNodeHeader, children: VecDeque<Node>) -> Self {
         Self { kind: EnvNodeKind::Open(children), header }
     }
 
     /** Create new module environment. */
-    pub fn new_module(children: Vec<Node>) -> Self {
+    pub fn new_module(children: VecDeque<Node>) -> Self {
         Self { 
             kind: EnvNodeKind::Open(children), 
             header: EnvNodeHeader {
@@ -155,6 +157,7 @@ impl EnvNodeHeaderKind {
             EnvNodeHeaderKind::Heading(0) => "h1",
             EnvNodeHeaderKind::Heading(1) => "h2",
             EnvNodeHeaderKind::Heading(_) => "h3",
+            EnvNodeHeaderKind::Fragment => "",
             EnvNodeHeaderKind::Other(name) => &name
         }
     }
@@ -243,7 +246,7 @@ impl Node {
 
 impl NodeKind {
 
-    pub fn heading(level: u8, children:  Vec<Node>) -> Self {
+    pub fn heading(level: u8, children:  VecDeque<Node>) -> Self {
         NodeKind::Env(
             EnvNode {
                 kind: EnvNodeKind::Open(children),

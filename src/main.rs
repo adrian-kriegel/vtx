@@ -1,6 +1,7 @@
 
 use vtx::parse::*;
 use vtx::plugins::html_emit::HTMLEmitter;
+use vtx::plugins::cleanup::Cleanup;
 use vtx::plugins::variables::Variables;
 use vtx::visit::transform;
 use vtx::visit::TransformerOnce;
@@ -22,6 +23,7 @@ fn main() {
     let document = transform(
         document,
         &mut vec![
+            Box::new(TransformerOnce::new(Cleanup)),
             Box::new(TransformerOnce::new(Variables::new()))
         ],
         1

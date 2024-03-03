@@ -55,8 +55,10 @@ impl Visitor for HTMLEmitter {
     fn enter(&mut self, node : Node, _parent_id : Option<NodeId>) -> TransformResult {
 
         match &node.kind {
-            NodeKind::Env(node) => 
-                collect_env_header(&node.header, &self.collector),
+            NodeKind::Env(node) => match &node.header.kind {
+                EnvNodeHeaderKind::Fragment => { },
+                _ => collect_env_header(&node.header, &self.collector)
+            }
 
             NodeKind::Leaf(LeafNode::Text(text)) => (self.collector)(&text),
             _ => return Err(
@@ -73,8 +75,10 @@ impl Visitor for HTMLEmitter {
     fn leave(&mut self, node : &Node, _original_id : NodeId, _parent_id : Option<NodeId>) {
 
         match &node.kind {
-            NodeKind::Env(node) => 
-                (self.collector)(&node.header.kind.get_closing_string()),
+            NodeKind::Env(node) => match &node.header.kind {
+                EnvNodeHeaderKind::Fragment => { },
+                _ => (self.collector)(&node.header.kind.get_closing_string())
+            },
             _ => {}
         }
     }

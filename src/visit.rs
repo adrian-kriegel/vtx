@@ -1,5 +1,5 @@
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use crate::document::*;
 
@@ -106,7 +106,7 @@ impl<T : Visitor> TransformerOnce<T> {
 impl Action {
 
     // TODO: add some sort of matching mechanism to avoid double-match
-    pub fn append_children(node : Node, mut children : Vec<Node>) -> Action {
+    pub fn append_children(node : Node, mut children : VecDeque<Node>) -> Action {
 
         match node {
             Node { 
@@ -185,7 +185,7 @@ fn transform_node_single_pass(
                     }
                 )
                 .map(|action| action.node)
-                .collect::<Vec<Node>>();
+                .collect::<VecDeque<Node>>();
 
             let node = Node {
                 id,

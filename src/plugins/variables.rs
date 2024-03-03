@@ -119,8 +119,9 @@ impl Visitor for Variables {
                     // <var name>value</var>
                     EnvNodeKind::Open(children) => {
                         if children.len() == 1 {
-                            children.first()
+                            children.front()
                         } else {
+                            dbg!(children);
                             todo!("Variable definitions must have exactly one child.");
                         }
                     },
