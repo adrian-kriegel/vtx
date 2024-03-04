@@ -278,8 +278,7 @@ mod test {
                     EnvNode{
                         header: EnvNodeHeader{ 
                             kind: EnvNodeHeaderKind::Eq(equation_kind), 
-                            attrs: _, 
-                            meta_attrs: _
+                            ..
                         }, 
                         kind: EnvNodeKind::Open(children) 
                     }

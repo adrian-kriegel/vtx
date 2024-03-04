@@ -3,13 +3,13 @@ use std::{collections::{HashMap, VecDeque}, sync::atomic::{AtomicUsize, Ordering
 
 use crate::parse::{ParserPosition, Token};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EquationKind {
     Inline, 
     Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EnvNodeHeaderKind {
     Eq(EquationKind),
     Code,
@@ -32,8 +32,6 @@ pub type EnvNodeAttrs = HashMap<String, Option<Node>>;
 pub struct EnvNodeHeader {
     pub kind: EnvNodeHeaderKind,
     pub attrs: EnvNodeAttrs,
-    /** Attributes about the node, relevant at parse time. */
-    pub meta_attrs: EnvNodeMetaAttrs,
 }
 
 #[derive(Debug, Clone)]
@@ -121,7 +119,6 @@ impl NodeKind {
                 header: EnvNodeHeader {
                     kind: EnvNodeHeaderKind::Fragment,
                     attrs: EnvNodeAttrs::new(),
-                    meta_attrs: EnvNodeMetaAttrs::new(&EnvNodeHeaderKind::Fragment)
                 }
             }
         )
@@ -160,7 +157,6 @@ impl EnvNode {
             header: EnvNodeHeader {
                 kind: EnvNodeHeaderKind::Module,
                 attrs: EnvNodeAttrs::new(),
-                meta_attrs: EnvNodeMetaAttrs { raw: false },
             }
         }
     }
@@ -222,7 +218,6 @@ impl EnvNodeHeader {
         let kind = EnvNodeHeaderKind::new(parsed_name);
 
         Self { 
-            meta_attrs: EnvNodeMetaAttrs::new(&kind),
             kind, 
             attrs,
         }
@@ -303,7 +298,6 @@ impl NodeKind {
                 header: EnvNodeHeader {
                     kind: EnvNodeHeaderKind::Heading(level),
                     attrs: EnvNodeAttrs::new(),
-                    meta_attrs: EnvNodeMetaAttrs { raw: false }
                 }
             }
         )

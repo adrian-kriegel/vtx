@@ -6,3 +6,4 @@ pub mod parse_error;
 pub mod visit;
 pub mod plugins;
 pub mod transpile;
+pub mod dynamic_parse;

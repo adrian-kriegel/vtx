@@ -4,6 +4,8 @@ use std::collections::VecDeque;
 use std::str::Chars;
 
 use crate::document::*;
+use crate::dynamic_parse::ContentParseMode;
+use crate::dynamic_parse::DynamicParserState;
 use crate::parse_error::*;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd)]
@@ -41,7 +43,9 @@ pub struct Parser<'a>{
     /** Current position in the source string. */
     position: ParserPosition,
     /** Tokens parsed so far (until position). */
-    parsed_tokens: TokenStorage<'a>
+    parsed_tokens: TokenStorage<'a>,
+    /** Dynamic part of the parser state. */
+    dynamic_state: DynamicParserState,
 }
 
 #[derive(Debug, Clone)]
@@ -172,7 +176,8 @@ impl<'a> Parser<'a> {
             iter: src.chars(), 
             remaining: src, 
             position: ParserPosition::zero(),
-            parsed_tokens: TokenStorage::new()
+            parsed_tokens: TokenStorage::new(),
+            dynamic_state: DynamicParserState::new(),
         }
     }
 
@@ -390,7 +395,7 @@ impl<'a> Parser<'a> {
                     value: "", 
                     position: self.position.clone()
                 })
-            }
+            },
         };
 
         (captured_handle, end_handle)
@@ -424,6 +429,7 @@ impl<'a> Parser<'a> {
             self.next_unescaped_char();
         }
 
+        // return EndOfModule if EndOfModule is if one of tokens
         tokens.contains(&TokenKind::EndOfModule).then(
             || Token {
                 value: "",
@@ -522,17 +528,7 @@ impl<'a> Parser<'a> {
                 TokenKind::Hash => self.parse_heading(),
 
                 TokenKind::FragmentOpen => {
-                    NodeKind::Env(
-                        EnvNode::new_open(
-                            EnvNodeHeader {
-                                kind: EnvNodeHeaderKind::Fragment,
-                                // TODO: Fragment should not have attrs
-                                attrs: HashMap::new(),
-                                meta_attrs: EnvNodeMetaAttrs::new(&EnvNodeHeaderKind::Fragment)
-                            },
-                            self.parse_children(TokenKind::FragmentClose),
-                        )
-                    )
+                    NodeKind::new_fragment(self.parse_children(TokenKind::FragmentClose))
                 },
 
                 TokenKind::EnvOpen => NodeKind::Env(self.parse_env_from_name()),
@@ -553,8 +549,7 @@ impl<'a> Parser<'a> {
 
                     NodeKind::Env(
                         EnvNode{
-                            header: EnvNodeHeader{ 
-                                meta_attrs: EnvNodeMetaAttrs::new(&header_kind),
+                            header: EnvNodeHeader{
                                 kind: header_kind, 
                                 attrs: EnvNodeAttrs::new(), 
                             }, 
@@ -572,9 +567,11 @@ impl<'a> Parser<'a> {
                     LeafNode::Comment(self.parse_comment().to_string())
                 ),
 
+                // 
                 TokenKind::EndOfModule => {
-                    // TODO: parse error node
-                    panic!("Unexpected end of module.")
+                    dbg!(&self.parsed_tokens.errors);
+                    panic!();
+                    NodeKind::Leaf(LeafNode::Error("Unexpected end of module.".to_string()))
                 },
 
                 // token can only be one of the kinds passed to 
@@ -734,27 +731,37 @@ impl<'a> Parser<'a> {
 
         let (header, stop_token) = self.parse_env_header_from_name();
 
+        let parse_options = self.dynamic_state.get_env_parse_attrs(&header.kind);
+
+        dbg!(&header);
+        dbg!(&parse_options);
+
         match stop_token {
 
             TokenKind::EnvSelfClose => EnvNode::new_self_closing(header),
 
-            TokenKind::RightAngle => {
-                let children = if header.meta_attrs.raw {
-                        
-                    let closing_tag = TokenKind::new_env_close(&header.kind);
+            TokenKind::RightAngle =>  {
+                let children = match parse_options.content() {
+                    // parse children as nodes
+                    ContentParseMode::Vtx => self.parse_children(
+                        TokenKind::new_env_close(&header.kind)
+                    ),
+                    // parse children as one big string of text
+                    ContentParseMode::Raw => {
+                        let closing_tag = TokenKind::new_env_close(&header.kind);
                     
-                    let (text, _) = self.seek_to_and_capture(
-                        TokenKind::Text,
-                        &[closing_tag.clone()],
-                    );
-
-                    if let Some(text) = text {
-                        VecDeque::from([Node::new_text(self.get_token(text))])
-                    } else {
-                        VecDeque::new()
-                    }
-                } else {
-                    self.parse_children(TokenKind::new_env_close(&header.kind))
+                        let (text, _) = self.seek_to_and_capture(
+                            TokenKind::Text,
+                            &[closing_tag.clone()],
+                        );
+                        if let Some(text) = text {
+                            dbg!(self.get_token(text));
+                            VecDeque::from([Node::new_text(self.get_token(text))])
+                        } else {
+                            VecDeque::new()
+                        }
+                    },
+                    ContentParseMode::RawStrict => todo!("Not implemented yet")
                 };
 
                 EnvNode::new_open(header, children)
