@@ -20,8 +20,7 @@ use crate::{
         NodeId,
         NodeKind,
         NodePosition
-    }, 
-    visit::{Action, TransformResult, VisitError, Visitor}
+    }, dynamic_parse::component_name_definition_attrs, visit::{Action, TransformResult, VisitError, Visitor}
 };
 
 
@@ -37,22 +36,18 @@ impl Visitor for ComponentRegister {
                 EnvNode { 
                     header: EnvNodeHeader { 
                         attrs, 
-                        kind: EnvNodeHeaderKind::Other(name),
+                        kind: EnvNodeHeaderKind::ComponentDefinition,
                         ..
                     },
                     kind: EnvNodeKind::Open(children),
                     ..
-                    // TODO: should "var" be an internal type? 
                 }
-            ) if name == "Component" => {
+            ) => {
 
-                let name = attrs
-                    .iter()
-                    .next()
-                    .ok_or(
-                        VisitError::Unknown("Component must have a name.".to_string())
-                    )?.0;
-
+                let name = component_name_definition_attrs(&attrs).ok_or(
+                    VisitError::Unknown("Component must have a name.".to_string())
+                )?;
+                
                 let children_container = Node {
                     kind: NodeKind::new_fragment(children),
                     ..node

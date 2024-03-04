@@ -53,3 +53,16 @@ And use them afterwards:
 <MyComponent heading="Example 2">
     Or something else the second time
 </MyComponent>
+
+# Semantics-Dependent Syntax
+
+VTX has semantics-dependent syntax. Component contents (children) are parsed differently depending on the component. By default, contents are parsed as VTX nodes. This will interfere with things like code blocks and equations. To define the syntax within your component, use the "content" attribute when defining your component:
+
+<Component MyRawComponent content="raw">
+    ${children}
+</Component>
+
+<MyRawComponent>
+    VTX-syntax is entirely ignored in here. You can <Open> up tags without closing them and use special characters, such as # $.
+</MyRawComponent>
+

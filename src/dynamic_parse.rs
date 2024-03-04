@@ -2,7 +2,11 @@
 use std::collections::HashMap;
 
 use crate::document::{
-    EnvNodeAttrs, EnvNodeHeaderKind, EquationKind, LeafNode, NodeKind
+    EnvNodeAttrs,
+    EnvNodeHeaderKind,
+    EquationKind,
+    LeafNode,
+    NodeKind
 };
 
 /// determines how env children are parsed
@@ -44,10 +48,11 @@ impl ContentParseMode {
             Some(value) => match value {
                 Some(node) => match &node.kind {
                     NodeKind::Leaf(LeafNode::Text(mode)) => {
+                        dbg!(mode);
                         match mode.as_str() {
                             "vtx" => Ok(ContentParseMode::Vtx),
-                            "raw" => Ok(ContentParseMode::Vtx),
-                            "raw-strict" => Ok(ContentParseMode::Vtx),
+                            "raw" => Ok(ContentParseMode::Raw),
+                            "raw-strict" => Ok(ContentParseMode::RawStrict),
                             _ => Err(DynamicParsingError::InvalidContentParseMode)
                         }
                     },
@@ -80,6 +85,12 @@ impl DynamicParserState {
         }
     }
 
+    pub fn set_env_parse_attrs(&mut self, header_kind: EnvNodeHeaderKind, attrs : EnvParseAttrs) {
+
+        self.env_parse_attrs.insert(header_kind, attrs);
+
+    }
+
 }
 
 impl EnvParseAttrs {
@@ -103,4 +114,8 @@ impl DynamicParserState {
         self.env_parse_attrs.get(header_kind).unwrap_or(&ENV_PARSE_ATTRS_DEFAULT)
 
     }
+}
+
+pub fn component_name_definition_attrs(attrs : &EnvNodeAttrs) -> Option<&String> {
+    Some(attrs.first()?.0)
 }

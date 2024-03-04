@@ -1,11 +1,13 @@
 
-use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::str::Chars;
 
 use crate::document::*;
+use crate::dynamic_parse::component_name_definition_attrs;
 use crate::dynamic_parse::ContentParseMode;
 use crate::dynamic_parse::DynamicParserState;
+use crate::dynamic_parse::DynamicParsingError;
+use crate::dynamic_parse::EnvParseAttrs;
 use crate::parse_error::*;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd)]
@@ -449,6 +451,26 @@ impl<'a> Parser<'a> {
         });
     }
 
+    pub fn add_component_definition(&mut self, name : &str, attrs : &EnvNodeAttrs, header_position : &ParserPosition) {
+
+        let env_parser_attrs = EnvParseAttrs::from_attrs(attrs);
+
+        match env_parser_attrs {
+            Ok(env_parser_attrs) => self.dynamic_state.set_env_parse_attrs(
+                EnvNodeHeaderKind::Other(name.to_string()),
+                env_parser_attrs
+            ),
+            Err(e) => match e {
+                DynamicParsingError::InvalidContentParseMode => self.push_error(
+                    ParseError::invalid_attr_value("content"),
+                    // TODO: use the position of the attr value
+                    header_position,
+                    ""
+                ),
+            }
+        };
+    }
+
     pub fn parse_comment(&mut self) -> &'a str {
 
         // TODO: allow nested comments
@@ -567,11 +589,12 @@ impl<'a> Parser<'a> {
                     LeafNode::Comment(self.parse_comment().to_string())
                 ),
 
-                // 
+                // should be fine to do nothing as a parser error should have been pushed
                 TokenKind::EndOfModule => {
-                    dbg!(&self.parsed_tokens.errors);
-                    panic!();
-                    NodeKind::Leaf(LeafNode::Error("Unexpected end of module.".to_string()))
+                    dbg!(&self.position);
+                    dbg!(&self.remaining);
+
+                    return children;
                 },
 
                 // token can only be one of the kinds passed to 
@@ -703,11 +726,13 @@ impl<'a> Parser<'a> {
         // EnvOpen only matches if followed by a letter
         let name = self.get_token(name.unwrap()).value;
 
+        let attrs_position = self.position.clone();
+        
         let mut header = EnvNodeHeader::new_default(name);
-
+        
         let stop_kind = self.get_token(stop_token).kind.clone();
 
-        if stop_kind == TokenKind::Whitespace {
+        let stop_kind = if stop_kind == TokenKind::Whitespace {
                 
             let (attrs, stop_kind_after_attrs) = self.parse_env_header_attrs();
 
@@ -715,11 +740,31 @@ impl<'a> Parser<'a> {
                 header.attrs.insert(key, value);
             }
 
-            (header, stop_kind_after_attrs)
+            stop_kind_after_attrs
         } else {
 
-            (header, stop_kind)
-        }
+            stop_kind
+        };
+
+        // a component is has been defined, insert the components parsing attributes
+        match &header.kind {
+            EnvNodeHeaderKind::ComponentDefinition => {
+                let name = component_name_definition_attrs(&header.attrs);
+
+                match name {
+                    Some(name) 
+                        => self.add_component_definition(name, &header.attrs, &attrs_position),
+                    None => self.push_error(
+                        ParseError::missing_attr_name(),
+                        &attrs_position,
+                        "TODO"
+                    )
+                };
+            },
+            _ => {} 
+        };
+
+        (header, stop_kind)
 
     }
 
@@ -755,7 +800,6 @@ impl<'a> Parser<'a> {
                             &[closing_tag.clone()],
                         );
                         if let Some(text) = text {
-                            dbg!(self.get_token(text));
                             VecDeque::from([Node::new_text(self.get_token(text))])
                         } else {
                             VecDeque::new()
@@ -1030,5 +1074,42 @@ mod tests {
 
     } 
 
+    #[test]
+    fn dynamic_parsing_error() {
+
+        let src = r#"(
+            <Component MyComponent>${children}</Component>
+            <Component RawComponent content="raw">${children}</Component>
+            <MyComponent><TagThatNeverCloses>$#</MyComponent>
+        )"#;
+
+        let (_, tokens) = super::parse(src);
+
+        let error = tokens.errors.iter().find(
+            |token| match &token.kind {
+                TokenKind::Error(ParseError{ kind: ParseErrorKind::EnvNotClosed, .. }) => true,
+                _ => false,
+            }
+        );
+
+        dbg!(&tokens.errors);
+
+        assert!(error.is_some());
+    }
+
+    #[test]
+    fn dynamic_parsing_valid() {
+
+        let src = r#"(
+            <Component MyComponent>${children}</Component>
+            <Component RawComponent content="raw">${children}</Component>
+            <RawComponent><TagThatNeverCloses>$#</RawComponent>
+
+        )"#;
+
+        let (_, tokens) = super::parse(src);
+
+        assert_eq!(tokens.errors, []);
+    }
 
 }

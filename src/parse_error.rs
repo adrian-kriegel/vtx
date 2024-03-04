@@ -22,8 +22,8 @@ impl fmt::Display for ParseErrorKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
-    kind: ParseErrorKind,
-    message: String,
+    pub kind: ParseErrorKind,
+    pub message: String,
 }
 
 impl ParseError {
@@ -64,11 +64,22 @@ impl ParseError {
         }
     }
 
+    pub fn invalid_attr_value(name : &str) -> Self{
+        ParseError{
+            kind: ParseErrorKind::MissingAttrName,
+            message: format!("Invalid value for attribute \"{}\".", name),
+        }
+    }
+
     pub fn quote_not_closed() -> Self{
         ParseError{
             kind: ParseErrorKind::QuoteNotClosed,
             message: String::from("Quote '\"' not closed."),
         }
+    }
+
+    pub fn kind(&self) -> &ParseErrorKind {
+        return &self.kind
     }
 
 }

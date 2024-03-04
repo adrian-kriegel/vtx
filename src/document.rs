@@ -1,5 +1,10 @@
 
-use std::{collections::{HashMap, VecDeque}, sync::atomic::{AtomicUsize, Ordering}};
+use std::{
+    collections::VecDeque,
+    sync::atomic::{AtomicUsize, Ordering}
+};
+
+use indexmap::IndexMap;
 
 use crate::parse::{ParserPosition, Token};
 
@@ -11,22 +16,19 @@ pub enum EquationKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EnvNodeHeaderKind {
+    // TODO: remove Eq and Code
     Eq(EquationKind),
     Code,
     Module,
+    // TODO: remove heading
     Heading(u8),
     Other(String),
     // container for a list of child nodes
-    Fragment
+    Fragment,
+    ComponentDefinition
 }
 
-#[derive(Debug, Clone)]
-pub struct EnvNodeMetaAttrs {
-    /** Indicates that anything inside this environment will be parsed as text. */
-    pub raw : bool
-}
-
-pub type EnvNodeAttrs = HashMap<String, Option<Node>>;
+pub type EnvNodeAttrs = IndexMap<String, Option<Node>>;
 
 #[derive(Debug, Clone)]
 pub struct EnvNodeHeader {
@@ -129,7 +131,7 @@ impl NodeKind {
             EnvNode::new_open(
                 EnvNodeHeader::new(
                     "var",
-                    HashMap::from([(name.to_string(), None)])
+                    EnvNodeAttrs::from([(name.to_string(), None)])
                 ),
                 VecDeque::from([value])
             )
@@ -162,27 +164,13 @@ impl EnvNode {
     }
 }
 
-
-
-impl EnvNodeMetaAttrs {
-
-    pub fn new(header_kind : &EnvNodeHeaderKind) -> Self {
-        EnvNodeMetaAttrs {
-            raw: match header_kind {
-                EnvNodeHeaderKind::Code | EnvNodeHeaderKind::Eq(_) => true,
-                _ => false
-            }
-        }
-    }
-
-}
-
 impl EnvNodeHeaderKind {
 
     pub fn new(name : &str) -> Self {
         match name {
             "Eq" => Self::Eq(EquationKind::Block),
             "Code" => Self::Code, 
+            "Component" => Self::ComponentDefinition,
             _ => Self::Other(String::from(name)),
         }
     }
@@ -196,6 +184,7 @@ impl EnvNodeHeaderKind {
             EnvNodeHeaderKind::Heading(1) => "h2",
             EnvNodeHeaderKind::Heading(_) => "h3",
             EnvNodeHeaderKind::Fragment => "",
+            EnvNodeHeaderKind::ComponentDefinition => "Component",
             EnvNodeHeaderKind::Other(name) => &name
         }
     }

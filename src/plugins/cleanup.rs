@@ -47,7 +47,7 @@ impl Visitor for Cleanup {
                 }
 
                 if back_is_empty {
-                    // children.pop_back();
+                    children.pop_back();
                 }
 
                 let node = Node {
