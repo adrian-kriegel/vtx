@@ -591,9 +591,6 @@ impl<'a> Parser<'a> {
 
                 // should be fine to do nothing as a parser error should have been pushed
                 TokenKind::EndOfModule => {
-                    dbg!(&self.position);
-                    dbg!(&self.remaining);
-
                     return children;
                 },
 
@@ -777,9 +774,6 @@ impl<'a> Parser<'a> {
         let (header, stop_token) = self.parse_env_header_from_name();
 
         let parse_options = self.dynamic_state.get_env_parse_attrs(&header.kind);
-
-        dbg!(&header);
-        dbg!(&parse_options);
 
         match stop_token {
 
@@ -1091,8 +1085,6 @@ mod tests {
                 _ => false,
             }
         );
-
-        dbg!(&tokens.errors);
 
         assert!(error.is_some());
     }

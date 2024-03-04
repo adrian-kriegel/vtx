@@ -48,7 +48,6 @@ impl ContentParseMode {
             Some(value) => match value {
                 Some(node) => match &node.kind {
                     NodeKind::Leaf(LeafNode::Text(mode)) => {
-                        dbg!(mode);
                         match mode.as_str() {
                             "vtx" => Ok(ContentParseMode::Vtx),
                             "raw" => Ok(ContentParseMode::Raw),
