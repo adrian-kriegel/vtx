@@ -1,7 +1,3 @@
-# DISCLAIMER 
-
-This project is in development. I started it as my first project in my journey of learning Rust. Many things could probably be done better, and I appreciate any input. I intentionally avoided using too many dependencies in order to properly learn the language. There are crates with exceptional language-parsing APIs that one could (and should) use instead of writing everything by hand.
-
 
 # NuTeX (.vtx)
 
@@ -11,46 +7,63 @@ The goal of NuTex is to be able to write content like scientific papers or blog 
 
 ## Compiler
 
-NuTeX is simply a parser that consumes `.vtx` files and emits intermediate formats, which can be defined using plugins. The output from this operation can then be passed to a renderer. Compiling to an intermediate format has the advantage of allowing different render targets to be configurable.
-
+NuTeX is simply a parser that consumes `.vtx` files and emits HTML. The output from this operation can then be passed to a renderer.
 
 ## Example
 
-NuTex combines elements from `HTML/XML`, `Markdown`, and `LaTeX`:
+NuTeX combines elements from `HTML/XML`, `Markdown`, and `LaTeX`.  One of the key features of the language is semantics-dependent syntax. Most languages require you to escape parts of the text that should not be interpreted as syntax. NuTeX solves this by allowing you to define how the contents of your components are parsed. 
 
-```
-# Heading
 
-## Second Level Heading
+```HTML
+# Example
 
+## Text and Equations
 This is an example file with example equations: $e=mc^2$
 
-Another equation: 
+## Simple Component
+You can define components like this:
 
-<Eq>
-    \nu Te \mathcal{X}
-</Eq>
+<Component MyComponent>
+    # ${heading}
+    ${children}
+</Component>
+
+And use them like this:
+
+<MyComponent heading="My Example Component">
+    You can put anything in here.
+</MyComponent>
+
+## Component with Syntax-Breaking Content
+
+To render things such as code or equations, you can define the parsing behavior within your components:
+
+<Component MyCodeBlock content="raw">
+    ${children}
+</Component>
+
+<MyCodeBlock>
+    VTX syntax is entirely ignored in here. 
+    You can <Open> up tags without closing them.
+    You can also use special characters, such as #, $, and <>.
+</MyCodeBlock>
+
 ```
 
-The intermediate format produced by the compiler: 
+The output format produced by the compiler: 
+```HTML
+<h1>Example</h1>
+<h2>Text and Equations</h2>
+This is an example file with example equations: 
+<Eq>e=mc^2</Eq>
+<h2>Simple Component</h2>
+You can define components like this:
+And use them like this:
+<h1>My Example Component</h1>
+You can put anything in here.
+<h2>Component with Syntax-Breaking Content</h2>
+To render things such as code or equations, you can define the parsing behavior within your components:
+VTX syntax is entirely ignored in here. 
+You can &lt;Open&gt; up tags without closing them.
+You can also use special characters, such as #, $, and &lt;&gt;.
 ```
-<h1>Heading</h1>
-<h2>Second Level Heading</h2>
-This is an example file with example equations: <Eq>e=mc^2</Eq>
-
-Another equation: 
-
-<Eq block >
-    \nu Te \mathcal{X}
-</Eq>
-```
-
-## Roadmap
-
-- Make the intermediate format HTML/XML compatible. There is a transformer that takes the current intermediate format and turns it into HTML (including rendering equations), but I would like the intermediate format itself to be XML compatible.
-- Create a web renderer (I wrote one for Next.js but would like a framework-agnostic one).
-- Create a pagination engine that would allow for producing PDF files.
-
-## Open Questions
-
-I haven't made my mind up yet about a couple of questions. You can find these in the issues tab.

@@ -1,0 +1,32 @@
+# Example
+
+## Text and Equations
+This is an example file with example equations: $e=mc^2$
+
+## Simple Component
+You can define components like this:
+
+<Component MyComponent>
+    # ${heading}
+    ${children}
+</Component>
+
+And use them like this:
+
+<MyComponent heading="My Example Component">
+    You can put anything in here.
+</MyComponent>
+
+## Component with Syntax-Breaking Content
+
+To render things such as code or equations, you can define the parsing behavior within your components:
+
+<Component MyCodeBlock content="raw">
+    ${children}
+</Component>
+
+<MyCodeBlock>
+    VTX syntax is entirely ignored in here. 
+    You can <Open> up tags without closing them.
+    You can also use special characters, such as #, $, and <>.
+</MyCodeBlock>
