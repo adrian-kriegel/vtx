@@ -21,7 +21,7 @@ pub enum EnvNodeHeaderKind {
     Code,
     Module,
     // TODO: remove heading
-    Heading(u8),
+    Heading(usize),
     Other(String),
     // container for a list of child nodes
     Fragment,
@@ -280,7 +280,7 @@ impl Node {
 
 impl NodeKind {
 
-    pub fn heading(level: u8, children:  VecDeque<Node>) -> Self {
+    pub fn heading(level: usize, children:  VecDeque<Node>) -> Self {
         NodeKind::Env(
             EnvNode {
                 kind: EnvNodeKind::Open(children),

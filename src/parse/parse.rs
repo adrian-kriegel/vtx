@@ -74,7 +74,7 @@ pub enum TokenKind{
     Dollar,
     Equals,
     Quote,
-    Hash,
+    HeadingOpen,
     // TODO: these are non-matchable tokens that are only parsed when capturing
     //       separate matchable from non-matchable tokens
     Text,
@@ -167,6 +167,19 @@ impl<'a> TokenStorage<'a> {
         TokenHandle(self.tokens.len() - 1)
     }
 
+}
+
+///
+/// @returns the substring that matches a heading-open token
+/// 
+fn capture_heading_open(s : &str) -> Option<&str> {
+
+    let mut chars_processed : usize = 0;
+
+    match s.chars().skip_while(|c| { let skip = *c == '#'; chars_processed +=1; skip }).next() {
+        Some(c) if chars_processed > 1 && c == ' ' => Some(&s[..chars_processed]),
+        _ => None,
+    }
 }
 
 impl<'a> Parser<'a> {
@@ -295,8 +308,7 @@ impl<'a> Parser<'a> {
                 || &self.remaining[..closer.len()]
             ),
 
-            TokenKind::Hash => self.remaining.starts_with("#")
-                .then(|| "#"),
+            TokenKind::HeadingOpen => capture_heading_open(self.remaining),
 
             // These can never be used for matching 
             // as they would match anything
@@ -484,19 +496,6 @@ impl<'a> Parser<'a> {
         self.get_captured_value(text)
     }
 
-    fn parse_heading(&mut self) -> NodeKind {
-
-        let mut level = 0;
-
-        while let Some('#') = self.next_char() {
-            level += 1;
-        }
-
-        let contents = self.parse_children(TokenKind::EndOfLine);
-
-        NodeKind::heading(level, contents)
-    }
-
     ///
     /// Parse a variable expression terminated by '}'
     ///
@@ -531,7 +530,7 @@ impl<'a> Parser<'a> {
                     TokenKind::DollarBrace,
                     TokenKind::Dollar,
                     TokenKind::CommentOpen,
-                    TokenKind::Hash
+                    TokenKind::HeadingOpen
                 ],
             );
 
@@ -548,7 +547,7 @@ impl<'a> Parser<'a> {
 
                 _ if stop_kind == closing_tag => break,
                 
-                TokenKind::Hash => self.parse_heading(),
+                TokenKind::HeadingOpen => NodeKind::heading(stop_token.value.len(), self.parse_children(TokenKind::EndOfLine)),
 
                 TokenKind::FragmentOpen => {
                     NodeKind::new_fragment(self.parse_children(TokenKind::FragmentClose))
