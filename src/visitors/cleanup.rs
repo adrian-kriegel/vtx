@@ -3,8 +3,13 @@
 /// These include empty lines at the start or end of env bodies.
 ///
 
-use crate::{
-    document::{EnvNode, EnvNodeKind, LeafNode, Node, NodeId, NodeKind}, 
+use crate::document::{
+    EnvNode,
+    EnvNodeKind,
+    LeafNode,
+    Node, 
+    NodeId,
+    NodeKind, 
     visit::{Action, TransformResult, Visitor}
 };
 

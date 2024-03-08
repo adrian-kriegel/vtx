@@ -4,17 +4,15 @@
 
 use std::collections::HashMap;
 
-use crate::{
-    document::{
-        EnvNode, 
-        EnvNodeHeader, 
-        EnvNodeHeaderKind, 
-        EnvNodeKind, 
-        LeafNode, 
-        Node, 
-        NodeId, 
-        NodeKind,
-    },
+use crate::document::{
+    EnvNode, 
+    EnvNodeHeader, 
+    EnvNodeHeaderKind, 
+    EnvNodeKind, 
+    LeafNode, 
+    Node, 
+    NodeId, 
+    NodeKind,
     visit::{Action, TransformResult, VisitError, Visitor}
 };
 

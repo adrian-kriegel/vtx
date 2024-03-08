@@ -3,12 +3,13 @@ use std::collections::VecDeque;
 use std::str::Chars;
 
 use crate::document::*;
-use crate::dynamic_parse::component_name_definition_attrs;
-use crate::dynamic_parse::ContentParseMode;
-use crate::dynamic_parse::DynamicParserState;
-use crate::dynamic_parse::DynamicParsingError;
-use crate::dynamic_parse::EnvParseAttrs;
-use crate::parse_error::*;
+use crate::parse::dynamic_parse::component_name_definition_attrs;
+use crate::parse::dynamic_parse::ContentParseMode;
+use crate::parse::dynamic_parse::DynamicParserState;
+use crate::parse::dynamic_parse::DynamicParsingError;
+use crate::parse::dynamic_parse::EnvParseAttrs;
+
+use crate::parse::error::*;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd)]
 pub struct ParserPosition {

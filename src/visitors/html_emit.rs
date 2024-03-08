@@ -1,6 +1,6 @@
 
 use crate::document::*;
-use crate::visit::{Action, VisitError, TransformResult, Visitor};
+use visit::{Action, VisitError, TransformResult, Visitor};
 use html_escape::encode_safe;
 
 pub struct HTMLEmitter {

@@ -9,19 +9,20 @@ use std::collections::VecDeque;
 /// 
 /// 
 
-use crate::{
-    document::{
-        EnvNode,
-        EnvNodeHeader,
-        EnvNodeHeaderKind,
-        EnvNodeKind,
-        LeafNode,
-        Node,
-        NodeId,
-        NodeKind,
-        NodePosition
-    }, dynamic_parse::component_name_definition_attrs, visit::{Action, TransformResult, VisitError, Visitor}
+use crate::document::{
+    EnvNode,
+    EnvNodeKind,
+    LeafNode,
+    Node, 
+    NodeId,
+    NodeKind, 
+    EnvNodeHeader,
+    EnvNodeHeaderKind,
+    NodePosition,
+    visit::{Action, TransformResult, Visitor, VisitError}
 };
+
+use crate::parse::dynamic_parse::component_name_definition_attrs;
 
 
 pub struct ComponentRegister;

@@ -1,12 +1,12 @@
 
 use vtx::parse::*;
-use vtx::plugins::components::ComponentInsert;
-use vtx::plugins::components::ComponentRegister;
-use vtx::plugins::html_emit::HTMLEmitter;
-use vtx::plugins::cleanup::Cleanup;
-use vtx::plugins::variables::Variables;
-use vtx::visit::transform;
-use vtx::visit::TransformerOnce;
+use vtx::visitors::components::ComponentInsert;
+use vtx::visitors::components::ComponentRegister;
+use vtx::visitors::html_emit::HTMLEmitter;
+use vtx::visitors::cleanup::Cleanup;
+use vtx::visitors::variables::Variables;
+use vtx::document::visit::transform;
+use vtx::document::visit::TransformerOnce;
 
 use std::io::Read;
 
